@@ -1,0 +1,1374 @@
+[
+  {
+    "id": "project-07596191-13c9-47c9-a39c-a6a7e4e859d8",
+    "name": "中石油",
+    "createTime": "2026-09-16T08:29:27.927Z",
+    "updateTime": "2026-09-16T09:30:41.094Z",
+    "description": "从空白画布创建的综合能源项目",
+    "owner": "A4Admin",
+    "favorite": false,
+    "tags": [
+      "综合能源"
+    ],
+    "status": "configured",
+    "workspace": {
+      "activeCanvasId": "canvas-f2248c4b-a865-4b18-a873-4ac9804a4cd2",
+      "canvases": [
+        {
+          "id": "canvas-f2248c4b-a865-4b18-a873-4ac9804a4cd2",
+          "name": "画布1",
+          "nodes": [
+            {
+              "id": "node-bf186be6-2319-4ec2-809f-c92e40304e77",
+              "type": "syner-node",
+              "draggable": true,
+              "selectable": true,
+              "connectable": true,
+              "initialized": false,
+              "position": {
+                "x": 135,
+                "y": 90
+              },
+              "data": {
+                "label": "风机",
+                "componentKey": "WT",
+                "categoryKey": "power",
+                "business": {
+                  "componentKey": "WT",
+                  "componentType": "power-converter",
+                  "componentName": "风机",
+                  "description": "风电机组",
+                  "deviceCount": 1,
+                  "commonTechParams": {
+                    "capacity": 49750,
+                    "ramp": 1,
+                    "efficiency": 0.95,
+                    "predict_algorithm": "None",
+                    "v_in": 3,
+                    "v_r": 9.5,
+                    "v_out": 19.5,
+                    "h1": 120,
+                    "h2": 135,
+                    "α": 0.143,
+                    "η_t": 0.96,
+                    "η_g": 0.93,
+                    "η_inverter": 0.96
+                  },
+                  "commonEconomicParams": {
+                    "om_cost": 0.1,
+                    "cut_cost": 0.9,
+                    "initial_cost": 4100,
+                    "replace_cost": 4100,
+                    "material_cost": 15,
+                    "other_manufacturing_cost": 5,
+                    "other_manage_cost": 10,
+                    "repair_cost": 0.01,
+                    "life_year": 20,
+                    "depreciation_year": 20,
+                    "staff_number": 50
+                  },
+                  "layerConfigs": {
+                    "1": {
+                      "layerId": "1",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "curtailment_constraint_on": {
+                          "enabled": true
+                        },
+                        "ramp_constraint_on": {
+                          "enabled": false
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "cut_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    },
+                    "2": {
+                      "layerId": "2",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "curtailment_constraint_on": {
+                          "enabled": true
+                        },
+                        "ramp_constraint_on": {
+                          "enabled": false
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "cut_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    },
+                    "3": {
+                      "layerId": "3",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "curtailment_constraint_on": {
+                          "enabled": true
+                        },
+                        "ramp_constraint_on": {
+                          "enabled": false
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "cut_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    },
+                    "4": {
+                      "layerId": "4",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "curtailment_constraint_on": {
+                          "enabled": true
+                        },
+                        "ramp_constraint_on": {
+                          "enabled": false
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "cut_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    },
+                    "5": {
+                      "layerId": "5",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "curtailment_constraint_on": {
+                          "enabled": true
+                        },
+                        "ramp_constraint_on": {
+                          "enabled": false
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "cut_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    }
+                  },
+                  "boundaryIds": [
+                    "b_mu3ucv3fddpe9t"
+                  ]
+                },
+                "style": {
+                  "width": 150,
+                  "height": 150,
+                  "rotation": 0,
+                  "fillColor": "#EFF8FF",
+                  "strokeColor": "#165DFF",
+                  "strokeWidth": 1.5,
+                  "fontSize": 13,
+                  "textColor": "#1D2939",
+                  "borderRadius": 10,
+                  "opacity": 1
+                },
+                "portConfig": {
+                  "power-out": {
+                    "medium": "electric",
+                    "side": "right",
+                    "label": "功率输出"
+                  }
+                }
+              },
+              "events": {},
+              "sourcePosition": "right",
+              "targetPosition": "left",
+              "style": {
+                "width": "150px",
+                "height": "150px",
+                "opacity": 1,
+                "zIndex": 1
+              }
+            },
+            {
+              "id": "node-6c0ddb5f-f499-4f6a-8fce-3b4490630b8b",
+              "type": "syner-node",
+              "draggable": true,
+              "selectable": true,
+              "connectable": true,
+              "initialized": false,
+              "position": {
+                "x": 30,
+                "y": 270
+              },
+              "data": {
+                "label": "光伏",
+                "componentKey": "PV",
+                "categoryKey": "power",
+                "business": {
+                  "componentKey": "PV",
+                  "componentType": "power-converter",
+                  "componentName": "光伏",
+                  "description": "光伏机组",
+                  "deviceCount": 1,
+                  "commonTechParams": {
+                    "capacity": 45750,
+                    "ramp": 1,
+                    "efficiency": 0.95,
+                    "predict_algorithm": "None"
+                  },
+                  "commonEconomicParams": {
+                    "om_cost": 0.1,
+                    "cut_cost": 0.9,
+                    "initial_cost": 4100,
+                    "replace_cost": 4100,
+                    "material_cost": 15,
+                    "other_manufacturing_cost": 5,
+                    "other_manage_cost": 10,
+                    "repair_cost": 0.01,
+                    "life_year": 20,
+                    "depreciation_year": 20,
+                    "staff_number": 50
+                  },
+                  "layerConfigs": {
+                    "1": {
+                      "layerId": "1",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "curtailment_constraint_on": {
+                          "enabled": true
+                        },
+                        "ramp_constraint_on": {
+                          "enabled": false
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "cut_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    },
+                    "2": {
+                      "layerId": "2",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "curtailment_constraint_on": {
+                          "enabled": true
+                        },
+                        "ramp_constraint_on": {
+                          "enabled": false
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "cut_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    },
+                    "3": {
+                      "layerId": "3",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "curtailment_constraint_on": {
+                          "enabled": true
+                        },
+                        "ramp_constraint_on": {
+                          "enabled": false
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "cut_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    },
+                    "4": {
+                      "layerId": "4",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "curtailment_constraint_on": {
+                          "enabled": true
+                        },
+                        "ramp_constraint_on": {
+                          "enabled": false
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "cut_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    },
+                    "5": {
+                      "layerId": "5",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "curtailment_constraint_on": {
+                          "enabled": true
+                        },
+                        "ramp_constraint_on": {
+                          "enabled": false
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "cut_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    }
+                  },
+                  "boundaryIds": [
+                    "b_mu3ucv3fx98z2v"
+                  ]
+                },
+                "style": {
+                  "width": 150,
+                  "height": 150,
+                  "rotation": 0,
+                  "fillColor": "#F8FAFC",
+                  "strokeColor": "#98A2B3",
+                  "strokeWidth": 1.5,
+                  "fontSize": 13,
+                  "textColor": "#1D2939",
+                  "borderRadius": 10,
+                  "opacity": 1
+                },
+                "portConfig": {
+                  "power-out": {
+                    "medium": "electric",
+                    "side": "right",
+                    "label": "功率输出"
+                  }
+                }
+              },
+              "events": {},
+              "sourcePosition": "right",
+              "targetPosition": "left",
+              "style": {
+                "width": "150px",
+                "height": "150px",
+                "opacity": 1,
+                "zIndex": 1
+              }
+            },
+            {
+              "id": "node-4dfb722f-2bc0-4281-a0d8-9206abaac4e1",
+              "type": "syner-node",
+              "draggable": true,
+              "selectable": true,
+              "connectable": true,
+              "initialized": false,
+              "position": {
+                "x": 435,
+                "y": 75
+              },
+              "data": {
+                "label": "电化学储能",
+                "componentKey": "ES",
+                "categoryKey": "storage",
+                "business": {
+                  "componentKey": "ES",
+                  "componentType": "electric-storage",
+                  "componentName": "电化学储能",
+                  "description": "电池储能系统",
+                  "deviceCount": 1,
+                  "commonTechParams": {
+                    "capacity": 15500,
+                    "η": 0.95,
+                    "ramp": 0.5,
+                    "max": 1,
+                    "min": 0.1,
+                    "ini": 0.1,
+                    "loss": 0.001
+                  },
+                  "commonEconomicParams": {
+                    "om_cost": 0.1,
+                    "initial_cost": 1500,
+                    "replace_cost": 1500,
+                    "material_cost": 0,
+                    "other_manufacturing_cost": 10,
+                    "other_manage_cost": 0,
+                    "repair_cost": 0.01,
+                    "life_year": 10,
+                    "depreciation_year": 10,
+                    "staff_number": 50
+                  },
+                  "layerConfigs": {
+                    "1": {
+                      "layerId": "1",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "ramp_constraint_on": {
+                          "enabled": true
+                        },
+                        "min_constraint_on": {
+                          "enabled": true
+                        },
+                        "adjust_constraint_on": {
+                          "enabled": true
+                        },
+                        "start_end_equality_constraint_on": {
+                          "enabled": true
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "adjust_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    },
+                    "2": {
+                      "layerId": "2",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "ramp_constraint_on": {
+                          "enabled": true
+                        },
+                        "min_constraint_on": {
+                          "enabled": true
+                        },
+                        "adjust_constraint_on": {
+                          "enabled": true
+                        },
+                        "start_end_equality_constraint_on": {
+                          "enabled": true
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "adjust_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    },
+                    "3": {
+                      "layerId": "3",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "ramp_constraint_on": {
+                          "enabled": true
+                        },
+                        "min_constraint_on": {
+                          "enabled": true
+                        },
+                        "adjust_constraint_on": {
+                          "enabled": true
+                        },
+                        "start_end_equality_constraint_on": {
+                          "enabled": true
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "adjust_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    },
+                    "4": {
+                      "layerId": "4",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "ramp_constraint_on": {
+                          "enabled": true
+                        },
+                        "min_constraint_on": {
+                          "enabled": true
+                        },
+                        "adjust_constraint_on": {
+                          "enabled": true
+                        },
+                        "start_end_equality_constraint_on": {
+                          "enabled": true
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "adjust_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    },
+                    "5": {
+                      "layerId": "5",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "ramp_constraint_on": {
+                          "enabled": true
+                        },
+                        "min_constraint_on": {
+                          "enabled": true
+                        },
+                        "adjust_constraint_on": {
+                          "enabled": true
+                        },
+                        "start_end_equality_constraint_on": {
+                          "enabled": true
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "adjust_objective_on": {
+                          "enabled": true
+                        }
+                      }
+                    }
+                  },
+                  "boundaryIds": []
+                },
+                "style": {
+                  "width": 150,
+                  "height": 150,
+                  "rotation": 0,
+                  "fillColor": "#ECFDF3",
+                  "strokeColor": "#12B76A",
+                  "strokeWidth": 1.5,
+                  "fontSize": 13,
+                  "textColor": "#1D2939",
+                  "borderRadius": 10,
+                  "opacity": 1
+                },
+                "portConfig": {
+                  "power-in": {
+                    "medium": "electric",
+                    "side": "left",
+                    "label": "充电"
+                  },
+                  "power-out": {
+                    "medium": "electric",
+                    "side": "right",
+                    "label": "放电"
+                  }
+                }
+              },
+              "events": {},
+              "sourcePosition": "right",
+              "targetPosition": "left",
+              "style": {
+                "width": "150px",
+                "height": "150px",
+                "opacity": 1,
+                "zIndex": 1
+              }
+            },
+            {
+              "id": "node-64e130b5-49fb-4929-b454-7ca656be7586",
+              "type": "syner-node",
+              "draggable": true,
+              "selectable": true,
+              "connectable": true,
+              "initialized": false,
+              "position": {
+                "x": 420,
+                "y": 255
+              },
+              "data": {
+                "label": "电总线",
+                "componentKey": "ELEC_BUS",
+                "categoryKey": "bus",
+                "business": {
+                  "componentKey": "ELEC_BUS",
+                  "componentType": "bus",
+                  "componentName": "电总线",
+                  "description": "电能源总线",
+                  "deviceCount": 1,
+                  "commonTechParams": {},
+                  "commonEconomicParams": {},
+                  "layerConfigs": {
+                    "1": {
+                      "layerId": "1",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {},
+                      "objectives": {}
+                    }
+                  },
+                  "boundaryIds": []
+                },
+                "style": {
+                  "width": 10,
+                  "height": 100,
+                  "rotation": 0,
+                  "fillColor": "#EEF4FF",
+                  "strokeColor": "#155EEF",
+                  "strokeWidth": 1.5,
+                  "fontSize": 13,
+                  "textColor": "#1D2939",
+                  "borderRadius": 1,
+                  "opacity": 1
+                },
+                "portConfig": {
+                  "bus-left-4": {
+                    "label": "",
+                    "side": "left",
+                    "offset": 20,
+                    "medium": "electric"
+                  },
+                  "bus-left-3": {
+                    "label": "",
+                    "side": "left",
+                    "offset": 40,
+                    "medium": "electric"
+                  },
+                  "bus-left-2": {
+                    "label": "",
+                    "side": "left",
+                    "offset": 60,
+                    "medium": "electric"
+                  },
+                  "bus-left-1": {
+                    "label": "",
+                    "side": "left",
+                    "offset": 80,
+                    "medium": "electric"
+                  },
+                  "bus-right-1": {
+                    "label": "",
+                    "side": "right",
+                    "offset": 20,
+                    "medium": "electric"
+                  },
+                  "bus-right-2": {
+                    "label": "",
+                    "side": "right",
+                    "offset": 40,
+                    "medium": "electric"
+                  },
+                  "bus-right-3": {
+                    "label": "",
+                    "side": "right",
+                    "offset": 60,
+                    "medium": "electric"
+                  },
+                  "bus-right-4": {
+                    "label": "",
+                    "side": "right",
+                    "offset": 80,
+                    "medium": "electric"
+                  }
+                }
+              },
+              "events": {},
+              "sourcePosition": "right",
+              "targetPosition": "left",
+              "style": {
+                "width": "10px",
+                "height": "100px",
+                "opacity": 1,
+                "zIndex": 1
+              }
+            },
+            {
+              "id": "node-5404f9d6-c746-4728-bfa8-d19dd6f7992e",
+              "type": "syner-node",
+              "draggable": true,
+              "selectable": true,
+              "connectable": true,
+              "initialized": false,
+              "position": {
+                "x": 585,
+                "y": 300
+              },
+              "data": {
+                "label": "分时电负荷",
+                "componentKey": "ELOAD",
+                "categoryKey": "load",
+                "business": {
+                  "componentKey": "ELOAD",
+                  "componentType": "time-shift-load",
+                  "componentName": "分时电负荷",
+                  "description": "分时电负荷",
+                  "deviceCount": 1,
+                  "commonTechParams": {
+                    "rated_demand": 150000,
+                    "priority": "A"
+                  },
+                  "commonEconomicParams": {
+                    "om_cost": 0,
+                    "initial_cost": 0,
+                    "replace_cost": 0,
+                    "material_cost": 0,
+                    "other_manufacturing_cost": 0,
+                    "other_manage_cost": 0,
+                    "repair_cost": 0,
+                    "life_year": 20,
+                    "depreciation_year": 20,
+                    "staff_number": 0
+                  },
+                  "layerConfigs": {
+                    "1": {
+                      "layerId": "1",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {},
+                      "objectives": {}
+                    },
+                    "2": {
+                      "layerId": "2",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {},
+                      "objectives": {}
+                    },
+                    "3": {
+                      "layerId": "3",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {},
+                      "objectives": {}
+                    },
+                    "4": {
+                      "layerId": "4",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {},
+                      "objectives": {}
+                    },
+                    "5": {
+                      "layerId": "5",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {},
+                      "objectives": {}
+                    }
+                  },
+                  "boundaryIds": [
+                    "b_mu3ucv3fsyw4bv"
+                  ]
+                },
+                "style": {
+                  "width": 150,
+                  "height": 150,
+                  "rotation": 0,
+                  "fillColor": "#FEF3F2",
+                  "strokeColor": "#F04438",
+                  "strokeWidth": 1.5,
+                  "fontSize": 13,
+                  "textColor": "#1D2939",
+                  "borderRadius": 10,
+                  "opacity": 1
+                },
+                "portConfig": {
+                  "power-in": {
+                    "medium": "electric",
+                    "side": "left",
+                    "label": "电输入"
+                  }
+                }
+              },
+              "events": {},
+              "sourcePosition": "right",
+              "targetPosition": "left",
+              "style": {
+                "width": "150px",
+                "height": "150px",
+                "opacity": 1,
+                "zIndex": 1
+              }
+            },
+            {
+              "id": "node-e15ac372-8651-4b2c-ba83-f8acf0c041e7",
+              "type": "syner-node",
+              "draggable": true,
+              "selectable": true,
+              "connectable": true,
+              "initialized": false,
+              "position": {
+                "x": 75,
+                "y": 450
+              },
+              "data": {
+                "label": "气电机组",
+                "componentKey": "GP",
+                "categoryKey": "power",
+                "business": {
+                  "componentKey": "GP",
+                  "componentType": "power-converter",
+                  "componentName": "气电机组",
+                  "description": "燃气发电机组",
+                  "deviceCount": 1,
+                  "commonTechParams": {
+                    "capacity": 40000,
+                    "η": 0.4,
+                    "ramp": 0.6,
+                    "min": 0.2,
+                    "T_min_on": 4,
+                    "T_min_off": 8
+                  },
+                  "commonEconomicParams": {
+                    "om_cost": 0.08,
+                    "on_off_cost": 5000,
+                    "initial_cost": 3500,
+                    "replace_cost": 3500,
+                    "material_cost": 0,
+                    "other_manufacturing_cost": 10,
+                    "other_manage_cost": 0,
+                    "repair_cost": 0.025,
+                    "life_year": 25,
+                    "depreciation_year": 25,
+                    "staff_number": 200
+                  },
+                  "layerConfigs": {
+                    "1": {
+                      "layerId": "1",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "ramp_constraint_on": {
+                          "enabled": true
+                        },
+                        "min_constraint_on": {
+                          "enabled": true
+                        },
+                        "on_off_constraint_on": {
+                          "enabled": false
+                        },
+                        "adjust_constraint_on": {
+                          "enabled": true
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "adjust_objective_on": {
+                          "enabled": true
+                        },
+                        "on_off_objective_on": {
+                          "enabled": false
+                        }
+                      }
+                    },
+                    "2": {
+                      "layerId": "2",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "ramp_constraint_on": {
+                          "enabled": true
+                        },
+                        "min_constraint_on": {
+                          "enabled": true
+                        },
+                        "on_off_constraint_on": {
+                          "enabled": false
+                        },
+                        "adjust_constraint_on": {
+                          "enabled": true
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "adjust_objective_on": {
+                          "enabled": true
+                        },
+                        "on_off_objective_on": {
+                          "enabled": false
+                        }
+                      }
+                    },
+                    "3": {
+                      "layerId": "3",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "ramp_constraint_on": {
+                          "enabled": true
+                        },
+                        "min_constraint_on": {
+                          "enabled": true
+                        },
+                        "on_off_constraint_on": {
+                          "enabled": false
+                        },
+                        "adjust_constraint_on": {
+                          "enabled": true
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "adjust_objective_on": {
+                          "enabled": true
+                        },
+                        "on_off_objective_on": {
+                          "enabled": false
+                        }
+                      }
+                    },
+                    "4": {
+                      "layerId": "4",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "ramp_constraint_on": {
+                          "enabled": true
+                        },
+                        "min_constraint_on": {
+                          "enabled": true
+                        },
+                        "on_off_constraint_on": {
+                          "enabled": false
+                        },
+                        "adjust_constraint_on": {
+                          "enabled": true
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "adjust_objective_on": {
+                          "enabled": true
+                        },
+                        "on_off_objective_on": {
+                          "enabled": false
+                        }
+                      }
+                    },
+                    "5": {
+                      "layerId": "5",
+                      "status": "stand_alone",
+                      "techParams": {},
+                      "economicParams": {},
+                      "constraints": {
+                        "ramp_constraint_on": {
+                          "enabled": true
+                        },
+                        "min_constraint_on": {
+                          "enabled": true
+                        },
+                        "on_off_constraint_on": {
+                          "enabled": false
+                        },
+                        "adjust_constraint_on": {
+                          "enabled": true
+                        }
+                      },
+                      "objectives": {
+                        "om_objective_on": {
+                          "enabled": true
+                        },
+                        "adjust_objective_on": {
+                          "enabled": true
+                        },
+                        "on_off_objective_on": {
+                          "enabled": false
+                        }
+                      }
+                    }
+                  },
+                  "boundaryIds": []
+                },
+                "style": {
+                  "width": 150,
+                  "height": 150,
+                  "rotation": 0,
+                  "fillColor": "#F8FAFC",
+                  "strokeColor": "#98A2B3",
+                  "strokeWidth": 1.5,
+                  "fontSize": 13,
+                  "textColor": "#1D2939",
+                  "borderRadius": 10,
+                  "opacity": 1
+                },
+                "portConfig": {
+                  "power-out": {
+                    "medium": "electric",
+                    "side": "right",
+                    "label": "功率输出"
+                  }
+                }
+              },
+              "events": {},
+              "sourcePosition": "right",
+              "targetPosition": "left",
+              "style": {
+                "width": "150px",
+                "height": "150px",
+                "opacity": 1,
+                "zIndex": 1
+              }
+            }
+          ],
+          "edges": [
+            {
+              "id": "edge-196e7944-5b5b-4246-bb5a-ff2698e6eed9",
+              "type": "step",
+              "source": "node-bf186be6-2319-4ec2-809f-c92e40304e77",
+              "target": "node-64e130b5-49fb-4929-b454-7ca656be7586",
+              "sourceHandle": "power-out",
+              "targetHandle": "bus-left-1",
+              "updatable": false,
+              "selectable": true,
+              "focusable": true,
+              "data": {
+                "label": "",
+                "medium": "electric",
+                "style": {
+                  "strokeColor": "#165DFF",
+                  "strokeWidth": 2,
+                  "strokeDasharray": "0",
+                  "labelColor": "#165DFF",
+                  "arrowType": "none"
+                }
+              },
+              "events": {},
+              "label": "",
+              "interactionWidth": 20,
+              "style": {
+                "stroke": "#165DFF",
+                "color": "#165DFF",
+                "strokeWidth": 2,
+                "strokeDasharray": "0",
+                "strokeLinecap": "square",
+                "strokeLinejoin": "miter"
+              }
+            },
+            {
+              "id": "edge-f74877a0-f316-4e80-a5a6-34af25ef2aa5",
+              "type": "step",
+              "source": "node-6c0ddb5f-f499-4f6a-8fce-3b4490630b8b",
+              "target": "node-64e130b5-49fb-4929-b454-7ca656be7586",
+              "sourceHandle": "power-out",
+              "targetHandle": "bus-left-2",
+              "updatable": false,
+              "selectable": true,
+              "focusable": true,
+              "data": {
+                "label": "",
+                "medium": "electric",
+                "style": {
+                  "strokeColor": "#165DFF",
+                  "strokeWidth": 2,
+                  "strokeDasharray": "0",
+                  "labelColor": "#165DFF",
+                  "arrowType": "none"
+                }
+              },
+              "events": {},
+              "label": "",
+              "interactionWidth": 20,
+              "style": {
+                "stroke": "#165DFF",
+                "color": "#165DFF",
+                "strokeWidth": 2,
+                "strokeDasharray": "0",
+                "strokeLinecap": "square",
+                "strokeLinejoin": "miter"
+              }
+            },
+            {
+              "id": "edge-21798620-b7b8-4a36-8613-69da095a58dc",
+              "type": "step",
+              "source": "node-64e130b5-49fb-4929-b454-7ca656be7586",
+              "target": "node-4dfb722f-2bc0-4281-a0d8-9206abaac4e1",
+              "sourceHandle": "bus-right-1",
+              "targetHandle": "power-in",
+              "updatable": false,
+              "selectable": true,
+              "focusable": true,
+              "data": {
+                "label": "",
+                "medium": "electric",
+                "style": {
+                  "strokeColor": "#165DFF",
+                  "strokeWidth": 2,
+                  "strokeDasharray": "0",
+                  "labelColor": "#165DFF",
+                  "arrowType": "none"
+                }
+              },
+              "events": {},
+              "label": "",
+              "interactionWidth": 20,
+              "style": {
+                "stroke": "#165DFF",
+                "color": "#165DFF",
+                "strokeWidth": 2,
+                "strokeDasharray": "0",
+                "strokeLinecap": "square",
+                "strokeLinejoin": "miter"
+              }
+            },
+            {
+              "id": "edge-a2ddad57-e3b7-4f8e-91ed-40564b9d65da",
+              "type": "step",
+              "source": "node-4dfb722f-2bc0-4281-a0d8-9206abaac4e1",
+              "target": "node-64e130b5-49fb-4929-b454-7ca656be7586",
+              "sourceHandle": "power-out",
+              "targetHandle": "bus-right-2",
+              "updatable": false,
+              "selectable": true,
+              "focusable": true,
+              "data": {
+                "label": "",
+                "medium": "electric",
+                "style": {
+                  "strokeColor": "#165DFF",
+                  "strokeWidth": 2,
+                  "strokeDasharray": "0",
+                  "labelColor": "#165DFF",
+                  "arrowType": "none"
+                }
+              },
+              "events": {},
+              "label": "",
+              "interactionWidth": 20,
+              "style": {
+                "stroke": "#165DFF",
+                "color": "#165DFF",
+                "strokeWidth": 2,
+                "strokeDasharray": "0",
+                "strokeLinecap": "square",
+                "strokeLinejoin": "miter"
+              }
+            },
+            {
+              "id": "edge-6bae468d-22b0-4e83-b922-82eb4b497423",
+              "type": "step",
+              "source": "node-64e130b5-49fb-4929-b454-7ca656be7586",
+              "target": "node-5404f9d6-c746-4728-bfa8-d19dd6f7992e",
+              "sourceHandle": "bus-right-3",
+              "targetHandle": "power-in",
+              "updatable": false,
+              "selectable": true,
+              "focusable": true,
+              "data": {
+                "label": "",
+                "medium": "electric",
+                "style": {
+                  "strokeColor": "#165DFF",
+                  "strokeWidth": 2,
+                  "strokeDasharray": "0",
+                  "labelColor": "#165DFF",
+                  "arrowType": "none"
+                }
+              },
+              "events": {},
+              "label": "",
+              "interactionWidth": 20,
+              "style": {
+                "stroke": "#165DFF",
+                "color": "#165DFF",
+                "strokeWidth": 2,
+                "strokeDasharray": "0",
+                "strokeLinecap": "square",
+                "strokeLinejoin": "miter"
+              }
+            },
+            {
+              "id": "edge-e2f9493b-0062-4af9-a657-13500462a2c6",
+              "source": "node-e15ac372-8651-4b2c-ba83-f8acf0c041e7",
+              "target": "node-64e130b5-49fb-4929-b454-7ca656be7586",
+              "sourceHandle": "power-out",
+              "targetHandle": "bus-left-3",
+              "type": "step",
+              "data": {
+                "label": "",
+                "medium": "electric",
+                "style": {
+                  "strokeColor": "#165DFF",
+                  "strokeWidth": 2,
+                  "strokeDasharray": "0",
+                  "labelColor": "#165DFF",
+                  "arrowType": "none"
+                }
+              },
+              "selectable": true,
+              "focusable": true,
+              "updatable": false,
+              "interactionWidth": 20,
+              "style": {
+                "stroke": "#165DFF",
+                "color": "#165DFF",
+                "strokeWidth": 2,
+                "strokeDasharray": "0",
+                "strokeLinecap": "square",
+                "strokeLinejoin": "miter"
+              }
+            }
+          ],
+          "viewport": {
+            "x": 232.04780242644313,
+            "y": 93.46241194568091,
+            "zoom": 0.9896309330796706
+          },
+          "pageConfig": {
+            "width": 1500,
+            "height": 1050,
+            "backgroundColor": "#FFFFFF",
+            "backgroundPattern": "grid",
+            "gridVisible": true,
+            "gridSize": 15,
+            "gridColor": "#E5E7EB",
+            "snapToGrid": true,
+            "showComponentName": true,
+            "showParameterTag": true,
+            "showPorts": true,
+            "labelLanguage": "chinese"
+          },
+          "updatedAt": "2026-09-16T09:27:19.528Z"
+        }
+      ],
+      "clipboard": null
+    },
+    "layerConfig": {
+      "layers": [
+        {
+          "id": "1",
+          "name": "时层1",
+          "length": "24h",
+          "step": "60m",
+          "forward": "1440m"
+        },
+        {
+          "id": "2",
+          "name": "时层2",
+          "length": "4h",
+          "step": "15m",
+          "forward": "15m"
+        }
+      ]
+    },
+    "boundaries": [
+      {
+        "id": "b_mu3ucv3fddpe9t",
+        "name": "风速",
+        "filePath": "C:\\Users\\Administrator\\Desktop\\zsy.csv",
+        "columnName": "wind_m_s",
+        "timeStep": "1h",
+        "meaning": "wind_speed",
+        "relatedComponents": [
+          "node-bf186be6-2319-4ec2-809f-c92e40304e77"
+        ],
+        "interpolateType": "copy",
+        "randomDistribution": "normal",
+        "noiseLevel": 0
+      },
+      {
+        "id": "b_mu3ucv3fx98z2v",
+        "name": "辐照度",
+        "filePath": "C:\\Users\\Administrator\\Desktop\\zsy.csv",
+        "columnName": "pv_power",
+        "timeStep": "1h",
+        "meaning": "power",
+        "relatedComponents": [
+          "node-6c0ddb5f-f499-4f6a-8fce-3b4490630b8b"
+        ],
+        "interpolateType": "copy",
+        "randomDistribution": "normal",
+        "noiseLevel": 0
+      },
+      {
+        "id": "b_mu3ucv3fsyw4bv",
+        "name": "功率",
+        "filePath": "C:\\Users\\Administrator\\Desktop\\zsy.csv",
+        "columnName": "new_electric_load_kw",
+        "timeStep": "1h",
+        "meaning": "power",
+        "relatedComponents": [
+          "node-5404f9d6-c746-4728-bfa8-d19dd6f7992e"
+        ],
+        "interpolateType": "copy",
+        "randomDistribution": "normal",
+        "noiseLevel": 0
+      }
+    ],
+    "algorithm": {
+      "electricityLoadPrediction": "None",
+      "windTurbinePrediction": "None",
+      "optimizationAlgorithm": "MILP",
+      "slackEnabled": false,
+      "slackPenalty": 1000000
+    },
+    "solverConfig": {
+      "tolerance": 0.0001,
+      "maxIteration": 500,
+      "threadCount": 8,
+      "warmStart": true
+    }
+  }
+]
