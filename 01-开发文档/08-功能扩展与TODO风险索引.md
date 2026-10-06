@@ -69,7 +69,6 @@
 - 已停止被边界页采用、但仍实际导出的 `BOUNDARY_COMPONENT_MAPPINGS`；
 - 未检出消费的 `config/theme-config.ts`；
 - 设置页 `/ws/simulation` 旧默认路径；
-- UpdateAlgorithmConfigRequest 与实际 body 不同；
 - 边界类型缺 heat/hydrogen；
 - 页面内重复 status/device/cost/palette 常量。
 - Toast 公共枚举使用 `danger`，但项目/边界页仍使用 `error`；

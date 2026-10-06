@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import PropertySwitch from './PropertySwitch.vue'
 import PropertyNumber from './PropertyNumber.vue'
+import PropertySelect from './PropertySelect.vue'
 
 import type { AlgorithmConfig } from '~~/types/simulation'
+import { SOLVER_OPTIONS } from '~~/config/solver'
 
 interface Props {
   open: boolean
@@ -20,13 +22,17 @@ const localConfig = ref<AlgorithmConfig>({
   electricityLoadPrediction: 'None',
   windTurbinePrediction: 'None',
   optimizationAlgorithm: 'MILP',
+  solver: 'COPT',
   slackEnabled: false,
   slackPenalty: 1000000
 })
 
 watch(() => props.open, (isOpen) => {
   if (isOpen) {
-    localConfig.value = { ...props.algorithm }
+    localConfig.value = {
+      ...props.algorithm,
+      solver: props.algorithm.solver === 'HiGHS' ? 'HiGHS' : 'COPT'
+    }
   }
 })
 
@@ -48,6 +54,16 @@ const handleCancel = () => {
     @close="handleCancel"
   >
     <div class="space-y-5 px-4 py-3">
+      <!-- 求解器 -->
+      <div>
+        <div class="mb-1.5 text-sm font-medium text-app-text">求解器</div>
+        <div class="mb-1.5 text-xs text-app-muted">选择当前项目计算任务使用的数学规划求解器</div>
+        <PropertySelect
+          v-model="localConfig.solver"
+          :options="SOLVER_OPTIONS"
+        />
+      </div>
+
       <!-- 松弛变量开关 -->
       <div class="flex items-center justify-between">
         <div>

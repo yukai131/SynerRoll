@@ -11,6 +11,8 @@ import {
   type DeviceOutputLiveData,
   type DeviceOutputVariable
 } from '~~/utils/deviceOutputData'
+import { formatCalendarMinute } from '~~/utils/calendarTime'
+import { getDeviceColor, getLayerColor } from '~~/config/device-colors'
 
 interface AxisGroup {
   dimension: string
@@ -24,6 +26,17 @@ interface DisplayedSeries {
   layerId: string
   name: string
 }
+
+type VariableLineType = 'solid' | 'dashed' | 'dotted' | number[]
+
+const VARIABLE_LINE_TYPES: readonly VariableLineType[] = [
+  'solid',
+  'dashed',
+  'dotted',
+  [10, 4, 2, 4],
+  [12, 4, 2, 4, 2, 4],
+  [4, 3, 12, 3]
+]
 
 const props = defineProps<{
   chartId: string
@@ -43,7 +56,11 @@ const props = defineProps<{
   traceError?: string
   minimumMinute?: number
   maximumMinute?: number
+  simStartDate?: string | null
 }>()
+
+const formatTimelineLabel = (minute: number): string =>
+  formatCalendarMinute(props.simStartDate, minute)
 
 const emit = defineEmits<{
   delete: []
@@ -59,12 +76,68 @@ const chartRef = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
 let resizeObserver: ResizeObserver | null = null
 
-const PALETTE = ['#0A4DA2', '#12B76A', '#F79009', '#7A5AF8', '#F04438', '#06AED4', '#D444F1', '#6172F3']
-
 const selectedVariables = computed(() => {
   const byKey = new Map(props.variables.map(variable => [variable.key, variable]))
   return props.selectedKeys.map(key => byKey.get(key)).filter((item): item is DeviceOutputVariable => Boolean(item))
 })
+
+function preferredVariableLineIndex(variable: DeviceOutputVariable): number {
+  const name = variable.baseVarName.toUpperCase()
+  if (name.includes('_CUT') || name.includes('SHORTAGE') || name.includes('EXCESS')) return 2
+  if (name.startsWith('AVAILABLE_')) return 1
+  if (name.startsWith('MINIMUM_') || name.startsWith('MAXIMUM_')) return 3
+  if (/(?:^|_)IN(?:_|$)/.test(name)) return 1
+  if (/(?:^|_)OUT(?:_|$)/.test(name)) return 0
+  if (['ES', 'HS', 'PS', 'FS', 'CS'].includes(variable.componentType.toUpperCase())) return 2
+  if (variable.medium === 'thermal') return 1
+  if (variable.medium === 'fuel') return 2
+  if (variable.medium === 'hydrogen') return 3
+  return 0
+}
+
+/** 同一设备内按完整变量目录稳定分配线型，避免随当前勾选顺序变化。 */
+const variableLineTypeByKey = computed(() => {
+  const variablesByDevice = new Map<string, DeviceOutputVariable[]>()
+  for (const variable of props.variables) {
+    const variables = variablesByDevice.get(variable.deviceId) ?? []
+    variables.push(variable)
+    variablesByDevice.set(variable.deviceId, variables)
+  }
+
+  const result = new Map<string, VariableLineType>()
+  for (const variables of variablesByDevice.values()) {
+    const used = new Set<number>()
+    const sorted = [...variables].sort((left, right) => left.key.localeCompare(right.key))
+    for (const variable of sorted) {
+      const preferred = preferredVariableLineIndex(variable)
+      let selected = preferred
+      for (let offset = 0; offset < VARIABLE_LINE_TYPES.length; offset += 1) {
+        const candidate = (preferred + offset) % VARIABLE_LINE_TYPES.length
+        if (!used.has(candidate)) {
+          selected = candidate
+          break
+        }
+      }
+      used.add(selected)
+      result.set(variable.key, VARIABLE_LINE_TYPES[selected]!)
+    }
+  }
+  return result
+})
+
+/** 用纯线段路径替代默认“线段＋圆点”图例，使短图例中也能辨认划线节奏。 */
+function legendIconForLineType(lineType: VariableLineType): string {
+  const signature = Array.isArray(lineType) ? lineType.join(',') : lineType
+  const paths: Record<string, string> = {
+    solid: 'path://M0 4H36V6H0Z',
+    dashed: 'path://M0 4H8V6H0Z M12 4H20V6H12Z M24 4H32V6H24Z',
+    dotted: 'path://M0 4H2V6H0Z M6 4H8V6H6Z M12 4H14V6H12Z M18 4H20V6H18Z M24 4H26V6H24Z M30 4H32V6H30Z',
+    '10,4,2,4': 'path://M0 4H10V6H0Z M14 4H16V6H14Z M20 4H30V6H20Z M34 4H36V6H34Z',
+    '12,4,2,4,2,4': 'path://M0 4H12V6H0Z M16 4H18V6H16Z M22 4H24V6H22Z M28 4H36V6H28Z',
+    '4,3,12,3': 'path://M0 4H4V6H0Z M7 4H19V6H7Z M22 4H26V6H22Z M29 4H36V6H29Z'
+  }
+  return paths[signature] ?? paths.solid!
+}
 
 const axisGroups = computed<AxisGroup[]>(() => {
   const groups = new Map<string, AxisGroup>()
@@ -85,8 +158,11 @@ const axisGroups = computed<AxisGroup[]>(() => {
   return [...groups.values()]
 })
 
+const orderedLayerIds = computed(() => [...props.layerIds]
+  .sort((left, right) => Number(left) - Number(right)))
+
 const displayedSeries = computed<DisplayedSeries[]>(() => selectedVariables.value.flatMap((variable) => (
-  props.layerIds
+  orderedLayerIds.value
     .filter(layerId => variable.layerIds.includes(layerId))
     .map(layerId => ({
       variable,
@@ -115,7 +191,7 @@ const maximumMinute = computed(() => {
     return dataMaximum || props.maximumMinute || 1440
   }
   if (props.maximumMinute && props.maximumMinute > 0) {
-    return dataMaximum > 0 ? Math.min(dataMaximum, props.maximumMinute) : props.maximumMinute
+    return props.maximumMinute
   }
   return dataMaximum || 1440
 })
@@ -125,8 +201,11 @@ const xAxisInterval = computed(() => {
   return props.layerIds.includes('3') ? 15 : 60
 })
 
-const rangeStartMinute = computed(() => maximumMinute.value * props.zoomStart / 100)
-const rangeEndMinute = computed(() => maximumMinute.value * props.zoomEnd / 100)
+const dateRangeStartMinute = ref(0)
+const dateRangeEndMinute = ref(1440)
+const timelineSpanMinutes = computed(() => Math.max(1, maximumMinute.value - minimumMinute.value))
+const rangeStartMinute = computed(() => minimumMinute.value + timelineSpanMinutes.value * props.zoomStart / 100)
+const rangeEndMinute = computed(() => minimumMinute.value + timelineSpanMinutes.value * props.zoomEnd / 100)
 const sliderStepMinutes = computed(() => {
   const sorted = [...new Set(dataMinutes.value)].sort((left, right) => left - right)
   const steps = sorted.slice(1)
@@ -195,9 +274,15 @@ function render(): void {
   const axisIndex = new Map(axisGroups.value.map((group, index) => [group.dimension, index]))
   const leftAxisCount = Math.ceil(axisGroups.value.length / 2)
   const rightAxisCount = Math.floor(axisGroups.value.length / 2)
-  const series: echarts.SeriesOption[] = displayedSeries.value.map((item, index) => {
+  const series: echarts.SeriesOption[] = displayedSeries.value.map((item) => {
     const variable = item.variable
-    const color = PALETTE[index % PALETTE.length]!
+    const layerIndex = orderedLayerIds.value.indexOf(item.layerId)
+    const color = getLayerColor(
+      getDeviceColor(variable.componentType, variable.deviceId),
+      Math.max(0, layerIndex),
+      orderedLayerIds.value.length
+    )
+    const lineType = variableLineTypeByKey.value.get(variable.key) ?? 'solid'
     return {
       id: `${variable.key}|${item.layerId}`,
       name: item.name,
@@ -209,7 +294,7 @@ function render(): void {
       smooth: false,
       sampling: 'lttb',
       connectNulls: false,
-      lineStyle: { width: 2, color },
+      lineStyle: { width: 2, color, type: lineType },
       itemStyle: { color },
       emphasis: { focus: 'series', lineStyle: { width: 3 } }
     } satisfies echarts.LineSeriesOption
@@ -218,18 +303,35 @@ function render(): void {
   chart.setOption({
     animation: false,
     animationDuration: 260,
-    color: PALETTE,
+    color: displayedSeries.value.map((item) => {
+      const layerIndex = orderedLayerIds.value.indexOf(item.layerId)
+      return getLayerColor(
+        getDeviceColor(item.variable.componentType, item.variable.deviceId),
+        Math.max(0, layerIndex),
+        orderedLayerIds.value.length
+      )
+    }),
     legend: {
-      top: 10,
-      left: 'center',
-      itemWidth: 18,
-      itemHeight: 9,
+      type: 'scroll',
+      orient: 'horizontal',
+      top: 8,
+      left: 24,
+      right: 24,
+      height: 24,
+      data: displayedSeries.value.map(item => ({
+        name: item.name,
+        icon: legendIconForLineType(variableLineTypeByKey.value.get(item.variable.key) ?? 'solid')
+      })),
+      itemWidth: 20,
+      itemHeight: 10,
+      pageIconSize: 10,
+      pageTextStyle: { fontSize: 10, color: '#667085' },
       textStyle: { fontSize: 10, color: '#4E5969' }
     },
     grid: {
       left: 96 + Math.max(0, leftAxisCount - 1) * 54,
       right: 64 + Math.max(0, rightAxisCount - 1) * 54,
-      top: 48,
+      top: 64,
       bottom: 32,
       containLabel: false
     },
@@ -243,7 +345,7 @@ function render(): void {
       axisLabel: {
         color: '#86909C',
         fontSize: 10,
-        formatter: (value: number) => minutesToTimestamp(value)
+        formatter: (value: number) => formatTimelineLabel(value)
       },
       splitLine: { show: false }
     },
@@ -258,11 +360,11 @@ function render(): void {
         offset: side.offset,
         scale: true,
         nameTextStyle: {
-          color: PALETTE[index % PALETTE.length],
+          color: '#667085',
           fontSize: 10,
           align: side.position === 'left' ? 'right' : 'left'
         },
-        axisLine: { show: true, lineStyle: { color: PALETTE[index % PALETTE.length] } },
+        axisLine: { show: true, lineStyle: { color: '#98A2B3' } },
         axisTick: { show: false },
         axisLabel: {
           color: '#86909C',
@@ -284,7 +386,7 @@ function render(): void {
           : []
         if (!items.length) return ''
         const minute = Number(items[0]?.data?.[0] ?? 0)
-        let html = `<div style="font-weight:600;margin-bottom:6px">${minutesToTimestamp(minute)}</div>`
+        let html = `<div style="font-weight:600;margin-bottom:6px">${formatTimelineLabel(minute)}</div>`
         for (const item of items) {
           const displayed = displayedSeries.value[item.seriesIndex ?? -1]
           const variable = displayed?.variable
@@ -383,12 +485,12 @@ function commitTraceStep(event: Event): void {
 }
 
 const visibleRangeLabel = computed(() => {
-  return `${minutesToTimestamp(rangeStartMinute.value)} - ${minutesToTimestamp(rangeEndMinute.value)}`
+  return `${formatTimelineLabel(rangeStartMinute.value)} - ${formatTimelineLabel(rangeEndMinute.value)}`
 })
 
 function onRangeStartUpdate(startMinute: number): void {
   emit('update:zoom', {
-    start: maximumMinute.value > 0 ? startMinute / maximumMinute.value * 100 : 0,
+    start: (startMinute - minimumMinute.value) / timelineSpanMinutes.value * 100,
     end: props.zoomEnd
   })
 }
@@ -396,7 +498,23 @@ function onRangeStartUpdate(startMinute: number): void {
 function onRangeEndUpdate(endMinute: number): void {
   emit('update:zoom', {
     start: props.zoomStart,
-    end: maximumMinute.value > 0 ? endMinute / maximumMinute.value * 100 : 100
+    end: (endMinute - minimumMinute.value) / timelineSpanMinutes.value * 100
+  })
+}
+
+function onDateRangeStartUpdate(startMinute: number): void {
+  dateRangeStartMinute.value = startMinute
+  emit('update:zoom', {
+    start: (startMinute - minimumMinute.value) / timelineSpanMinutes.value * 100,
+    end: (dateRangeEndMinute.value - minimumMinute.value) / timelineSpanMinutes.value * 100
+  })
+}
+
+function onDateRangeEndUpdate(endMinute: number): void {
+  dateRangeEndMinute.value = endMinute
+  emit('update:zoom', {
+    start: (dateRangeStartMinute.value - minimumMinute.value) / timelineSpanMinutes.value * 100,
+    end: (endMinute - minimumMinute.value) / timelineSpanMinutes.value * 100
   })
 }
 
@@ -416,7 +534,7 @@ function exportCsv(): void {
   const rows = [header.map(csvCell).join(',')]
   for (const minute of timestamps) {
     const values = valueMaps.map(map => map.has(minute) ? String(map.get(minute)) : '')
-    rows.push([minutesToTimestamp(minute), ...values].map(csvCell).join(','))
+    rows.push([formatTimelineLabel(minute), ...values].map(csvCell).join(','))
   }
   const safeTitle = props.title.trim().replace(/[\\/:*?"<>|]/g, '_') || '设备出力分析'
   downloadText(`${safeTitle}.csv`, `﻿${rows.join('\r\n')}`, 'text/csv;charset=utf-8')
@@ -429,8 +547,18 @@ function destroyChart(): void {
   chart = null
 }
 
+watch(
+  [minimumMinute, maximumMinute],
+  ([minimum, maximum]) => {
+    dateRangeStartMinute.value = minimum
+    dateRangeEndMinute.value = maximum
+  },
+  { immediate: true }
+)
+
 watch(() => JSON.stringify([
   props.selectedKeys,
+  props.variables.map(variable => [variable.key, variable.baseVarName, variable.deviceId, variable.medium]),
   props.liveData,
   props.layerIds,
   props.layerLabels,
@@ -439,6 +567,7 @@ watch(() => JSON.stringify([
   props.traceStep,
   props.maximumMinute,
   props.minimumMinute,
+  props.simStartDate,
   props.zoomStart,
   props.zoomEnd
 ]), () => {
@@ -528,13 +657,23 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-if="analysisMode === 'range'" class="px-5">
-        <DualRangeSlider
+        <CalendarRangeInputs
+          v-if="simStartDate"
+          :base-date="simStartDate"
+          :start="dateRangeStartMinute"
+          :end="dateRangeEndMinute"
+          :min="minimumMinute"
+          :max="maximumMinute"
+          @update:start="onDateRangeStartUpdate"
+          @update:end="onDateRangeEndUpdate"
+        />
+        <PrimaryDualRangeSlider
           :start="rangeStartMinute"
           :end="rangeEndMinute"
-          :min="0"
-          :max="maximumMinute"
+          :min="dateRangeStartMinute"
+          :max="dateRangeEndMinute"
           :step="sliderStepMinutes"
-          :format-label="minutesToTimestamp"
+          :format-label="formatTimelineLabel"
           @update:start="onRangeStartUpdate"
           @update:end="onRangeEndUpdate"
         />

@@ -1,4 +1,5 @@
 import { apiSuccess } from '#server/utils/response'
+import type { BoundaryTimeMode } from '~~/types/boundary'
 
 const JULIA_BACKEND_URL = 'http://localhost:8080/api/boundary/import'
 
@@ -27,6 +28,13 @@ export default defineEventHandler(async (event) => {
         timestamps: string[]
         xAxisLabel: string
         yAxisLabel: string
+        pointCount: number
+        totalHours: number
+        dayCount: number
+        timeStep: string
+        timeMode: BoundaryTimeMode
+        calendarStartDate?: string
+        calendarEndDate?: string
       }
       message?: string
     }>(JULIA_BACKEND_URL, {

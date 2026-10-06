@@ -23,7 +23,7 @@ const percentage = (value: number): number => {
   return range > 0 ? (value - props.min) / range * 100 : 0
 }
 
-const fillStyle = computed(() => ({
+const selectionStyle = computed(() => ({
   left: `${percentage(props.start)}%`,
   right: `${100 - percentage(props.end)}%`
 }))
@@ -52,7 +52,7 @@ const onEndInput = (event: Event) => {
 <template>
   <div class="relative h-10">
     <div class="absolute inset-x-0 top-1.5 h-1 rounded-full bg-app-border">
-      <div class="absolute top-0 h-1 rounded-full bg-gray-300" :style="fillStyle" />
+      <div class="absolute top-0 h-1 rounded-full bg-primary" :style="selectionStyle" />
     </div>
     <input
       :key="`start-${min}-${max}`"
@@ -61,7 +61,7 @@ const onEndInput = (event: Event) => {
       :min="min"
       :max="max"
       :step="step"
-      class="drs-input absolute inset-x-0 top-[-2px] z-10 w-full"
+      class="primary-drs-input absolute inset-x-0 top-[-2px] z-10 w-full"
       aria-label="起始值"
       @input="onStartInput"
     >
@@ -72,7 +72,7 @@ const onEndInput = (event: Event) => {
       :min="min"
       :max="max"
       :step="step"
-      class="drs-input absolute inset-x-0 top-[-2px] z-20 w-full"
+      class="primary-drs-input absolute inset-x-0 top-[-2px] z-20 w-full"
       aria-label="终止值"
       @input="onEndInput"
     >
@@ -88,7 +88,7 @@ const onEndInput = (event: Event) => {
 </template>
 
 <style scoped>
-.drs-input {
+.primary-drs-input {
   height: 20px;
   margin: 0;
   background: transparent;
@@ -97,39 +97,39 @@ const onEndInput = (event: Event) => {
   pointer-events: none;
 }
 
-.drs-input::-webkit-slider-runnable-track {
+.primary-drs-input::-webkit-slider-runnable-track {
   height: 4px;
   background: transparent;
 }
 
-.drs-input::-webkit-slider-thumb {
-  width: 6px;
-  height: 12px;
+.primary-drs-input::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
   margin-top: -5px;
-  border: 2px solid #adadad;
-  border-radius: 30%;
-  background: #adadad;
+  border: 2px solid #0A4DA2;
+  border-radius: 50%;
+  background: #fff;
   cursor: grab;
   appearance: none;
   pointer-events: auto;
 }
 
-.drs-input::-moz-range-track {
+.primary-drs-input::-moz-range-track {
   height: 4px;
   background: transparent;
 }
 
-.drs-input::-moz-range-thumb {
-  width: 6px;
-  height: 12px;
-  border: 2px solid #adadad;
-  border-radius: 30%;
-  background: #adadad;
+.primary-drs-input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #0A4DA2;
+  border-radius: 50%;
+  background: #fff;
   cursor: grab;
   pointer-events: auto;
 }
 
-.drs-input:focus-visible::-webkit-slider-thumb {
+.primary-drs-input:focus-visible::-webkit-slider-thumb {
   outline: 2px solid rgba(10, 77, 162, 0.35);
   outline-offset: 3px;
 }

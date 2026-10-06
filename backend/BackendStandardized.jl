@@ -2,6 +2,7 @@ begin
     using JSON3
     using JuMP
     using COPT
+    using HiGHS
     # using MathOptInterface
 
     include("utils/timestr_utils.jl")

@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import * as echarts from 'echarts'
 import {
-  timeLabelToMinutes,
-  minutesToTimeLabel
+  timeLabelToMinutes
 } from '~~/utils/timeLabel'
+import { formatCalendarMinute } from '~~/utils/calendarTime'
+import { getDeviceColor, getLayerColor } from '~~/config/device-colors'
+
+const SOLID_LINE_LEGEND_ICON = 'path://M0 4H30V6H0Z'
 
 interface Point {
   ts: string
@@ -13,15 +16,67 @@ interface Point {
 const props = defineProps<{
   layers: Record<string, Point[]>
   title: string
+  deviceColorKey?: string
   unit: string
   /** 层ID→层名称映射，如 { "1": "日前", "2": "日内" } */
   layerNames?: Record<string, string>
   simStartTime?: string
   simEndTime?: string | null
+  simStartDate?: string | null
 }>()
 
 const chartRef = ref<HTMLDivElement | null>(null)
 let chartInstance: echarts.ECharts | null = null
+const DAY_MINUTES = 24 * 60
+const dateRangeStartMinutes = ref(0)
+const dateRangeEndMinutes = ref(DAY_MINUTES)
+const rangeStartMinutes = ref(0)
+const rangeEndMinutes = ref(DAY_MINUTES)
+
+const simStartMinutes = computed(() => timeLabelToMinutes(props.simStartTime ?? '0:00'))
+const simEndMinutes = computed(() => props.simEndTime ? timeLabelToMinutes(props.simEndTime) : null)
+
+const timelineMinutes = computed(() => [...new Set(
+  Object.values(props.layers)
+    .flat()
+    .map(point => timeLabelToMinutes(point.ts))
+    .filter(Number.isFinite)
+)].sort((left, right) => left - right))
+
+const sliderStepMinutes = computed(() => {
+  const timeline = timelineMinutes.value
+  const steps = timeline
+    .slice(1)
+    .map((minute, index) => minute - timeline[index]!)
+    .filter(step => step > 0)
+  return Math.min(...steps, 60)
+})
+
+const sliderMax = computed(() => {
+  const timeline = timelineMinutes.value
+  const dataEnd = timeline.length
+    ? timeline[timeline.length - 1]! + sliderStepMinutes.value
+    : DAY_MINUTES
+  const configuredEnd = simEndMinutes.value
+  return Math.max(
+    simStartMinutes.value + sliderStepMinutes.value,
+    configuredEnd === null ? dataEnd : configuredEnd
+  )
+})
+
+const formatTimelineLabel = (minute: number): string => formatCalendarMinute(props.simStartDate, minute)
+const updateRangeStart = (value: number): void => { rangeStartMinutes.value = value }
+const updateRangeEnd = (value: number): void => { rangeEndMinutes.value = value }
+const updateDateRangeStart = (value: number): void => {
+  dateRangeStartMinutes.value = value
+  rangeStartMinutes.value = value
+  rangeEndMinutes.value = dateRangeEndMinutes.value
+}
+const updateDateRangeEnd = (value: number): void => {
+  dateRangeEndMinutes.value = value
+  rangeStartMinutes.value = dateRangeStartMinutes.value
+  rangeEndMinutes.value = value
+}
 
 /** 运行总览只展示整数量级，小数及求解器产生的极小浮点残差直接截断。 */
 function truncateSeriesValue(value: number): number {
@@ -32,18 +87,10 @@ function formatIntegerValue(value: number): string {
   return Math.trunc(value).toLocaleString('en-US')
 }
 
-// 色带，越早的层越半透明，最新的层不透明
-const PALETTE = [
-  '239,68,68',   // 红
-  '234,179,8',   // 黄
-  '34,197,94',   // 绿
-  '59,130,246',  // 蓝
-  '168,85,247',  // 紫
-]
+// 同一设备的各时层保持同一色相，仅用透明度区分先后层次。
 function layerColor(index: number, total: number): string {
-  const rgb = PALETTE[index % PALETTE.length]!
-  const opacity = total <= 1 ? 1.0 : 0.35 + 0.65 * (index / (total - 1))
-  return `rgba(${rgb},${opacity.toFixed(2)})`
+  const baseColor = getDeviceColor(props.deviceColorKey ?? props.title, props.title)
+  return getLayerColor(baseColor, index, total)
 }
 
 const render = () => {
@@ -53,8 +100,8 @@ const render = () => {
   }
 
   const layerIds = Object.keys(props.layers).sort((a, b) => Number(a) - Number(b))
-  const startMin = timeLabelToMinutes(props.simStartTime ?? '0:00')
-  const endMin = props.simEndTime ? timeLabelToMinutes(props.simEndTime) : Infinity
+  const startMin = rangeStartMinutes.value
+  const endMin = rangeEndMinutes.value
 
   const series: echarts.SeriesOption[] = layerIds.map((lid, i) => {
     const points = props.layers[lid] ?? []
@@ -86,18 +133,23 @@ const render = () => {
       show: layerIds.length > 1,
       top: 2,
       right: 8,
-      itemWidth: 12,
+      data: series.map(item => ({
+        name: String(item.name ?? ''),
+        icon: SOLID_LINE_LEGEND_ICON
+      })),
+      itemWidth: 20,
       itemHeight: 8,
       textStyle: { fontSize: 9 }
     },
     grid: { left: 42, right: 12, top: layerIds.length > 1 ? 20 : 24, bottom: 20, containLabel: false },
     xAxis: {
       type: 'value',
-      min: 0,
+      min: startMin,
+      max: endMin,
       interval: 'auto',
       axisLabel: {
         fontSize: 9,
-        formatter: (v: number) => minutesToTimeLabel(v)
+        formatter: (v: number) => formatCalendarMinute(props.simStartDate, v)
       },
       splitLine: { show: false }
     },
@@ -121,7 +173,7 @@ const render = () => {
         const arr = Array.isArray(params) ? params as { data?: number[]; seriesName?: string; color?: string }[] : []
         if (!arr.length) return ''
         const m = arr[0]?.data?.[0] ?? 0
-        let html = `<b>${minutesToTimeLabel(m as number)}</b>`
+        let html = `<b>${formatCalendarMinute(props.simStartDate, m as number)}</b>`
         for (const p of arr) {
           const d = p.data
           if (!d || d.length < 2) continue
@@ -144,8 +196,34 @@ const render = () => {
   })
 }
 
-// 数据、单位或仿真范围变化时重绘。
-watch([() => JSON.stringify(props.layers), () => props.unit, () => props.simStartTime, () => props.simEndTime], () => render())
+watch(sliderMax, (max, previousMax) => {
+  const previous = previousMax ?? 0
+  if (max > previous && dateRangeEndMinutes.value >= previous) dateRangeEndMinutes.value = max
+  else if (dateRangeEndMinutes.value > max) dateRangeEndMinutes.value = max
+  if (rangeEndMinutes.value > dateRangeEndMinutes.value) rangeEndMinutes.value = dateRangeEndMinutes.value
+  if (rangeStartMinutes.value >= max) rangeStartMinutes.value = simStartMinutes.value
+})
+
+watch(
+  [() => props.simStartTime, () => props.simEndTime],
+  () => {
+    dateRangeStartMinutes.value = simStartMinutes.value
+    dateRangeEndMinutes.value = sliderMax.value
+    rangeStartMinutes.value = simStartMinutes.value
+    rangeEndMinutes.value = sliderMax.value
+  },
+  { immediate: true }
+)
+
+// 数据、单位或显示范围变化时重绘。
+watch([
+  () => JSON.stringify(props.layers),
+  () => props.deviceColorKey,
+  () => props.unit,
+  () => props.simStartDate,
+  rangeStartMinutes,
+  rangeEndMinutes
+], () => render())
 
 onMounted(() => {
   render()
@@ -161,5 +239,29 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="chartRef" class="w-full h-36" />
+  <section>
+    <div ref="chartRef" class="h-36 w-full" />
+    <div class="px-2 pt-1">
+      <CalendarRangeInputs
+        v-if="simStartDate"
+        :base-date="simStartDate"
+        :start="dateRangeStartMinutes"
+        :end="dateRangeEndMinutes"
+        :min="simStartMinutes"
+        :max="sliderMax"
+        @update:start="updateDateRangeStart"
+        @update:end="updateDateRangeEnd"
+      />
+      <DualRangeSlider
+        :start="rangeStartMinutes"
+        :end="rangeEndMinutes"
+        :min="dateRangeStartMinutes"
+        :max="dateRangeEndMinutes"
+        :step="sliderStepMinutes"
+        :format-label="formatTimelineLabel"
+        @update:start="updateRangeStart"
+        @update:end="updateRangeEnd"
+      />
+    </div>
+  </section>
 </template>

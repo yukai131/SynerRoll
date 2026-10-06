@@ -1,4 +1,5 @@
 import { apiSuccess } from '#server/utils/response'
+import type { BoundaryMetadata } from '~~/types/boundary'
 
 const JULIA_BACKEND_URL = 'http://localhost:8080/api/boundary/load'
 
@@ -13,24 +14,25 @@ export default defineEventHandler(async (event) => {
   try {
     const response = await $fetch<{
       success: boolean
-      allFound: boolean
       message?: string
-      boundaries?: Array<{
-        layerId: string
-        found: boolean
-        values?: number[]
-        timestamps?: string[]
-      }>
+      data?: {
+        allFound: boolean
+        boundaries: Array<{
+          boundaryId?: string
+          layerId: string
+          found: boolean
+          values?: number[]
+          timestamps?: string[]
+          config?: BoundaryMetadata
+        }>
+      }
     }>(JULIA_BACKEND_URL, {
       method: 'POST',
       body
     })
 
-    if (response.success) {
-      return apiSuccess({
-        allFound: response.allFound,
-        boundaries: response.boundaries
-      })
+    if (response.success && response.data) {
+      return apiSuccess(response.data)
     }
     else {
       throw createError({

@@ -2,9 +2,12 @@
 import * as echarts from 'echarts'
 import type { DeviceFlexibilityResult } from '~~/types/api'
 import {
-  timeLabelToMinutes,
-  isTimeInRange
+  timeLabelToMinutes
 } from '~~/utils/timeLabel'
+import { formatCalendarMinute } from '~~/utils/calendarTime'
+
+const SOLID_LINE_LEGEND_ICON = 'path://M0 4H30V6H0Z'
+const DASHED_LINE_LEGEND_ICON = 'path://M0 4H7V6H0Z M11 4H18V6H11Z M23 4H30V6H23Z'
 
 const props = defineProps<{
   title: string
@@ -13,17 +16,71 @@ const props = defineProps<{
   boundary?: boolean
   simStartTime?: string
   simEndTime?: string | null
+  simStartDate?: string | null
 }>()
 
 const chartRef = ref<HTMLDivElement | null>(null)
 let chart: echarts.ECharts | null = null
 let resizeObserver: ResizeObserver | null = null
+const DAY_MINUTES = 24 * 60
+const dateRangeStartMinutes = ref(0)
+const dateRangeEndMinutes = ref(DAY_MINUTES)
+const rangeStartMinutes = ref(0)
+const rangeEndMinutes = ref(DAY_MINUTES)
 
-const startTime = computed(() => props.simStartTime ?? '0:00')
-const endTime = computed(() => props.simEndTime ?? null)
+const simStartMinutes = computed(() => timeLabelToMinutes(props.simStartTime ?? '0:00'))
+const simEndMinutes = computed(() => props.simEndTime ? timeLabelToMinutes(props.simEndTime) : null)
+
+function timeStepToMinutes(value: unknown): number {
+  const match = /^(\d+(?:\.\d+)?)\s*(h|m|s)$/i.exec(String(value ?? '').trim())
+  if (!match) return 60
+  const amount = Number(match[1])
+  const unit = match[2]!.toLowerCase()
+  if (unit === 'h') return amount * 60
+  if (unit === 's') return amount / 60
+  return amount
+}
+
+const sliderStepMinutes = computed(() => {
+  const steps = props.rows
+    .map(row => timeStepToMinutes(row.time_step))
+    .filter(step => Number.isFinite(step) && step > 0)
+  return Math.min(...steps, 60)
+})
+
+const sliderMax = computed(() => {
+  let dataEnd = 0
+  for (const row of props.rows) {
+    const start = timeLabelToMinutes(row.timestamp)
+    dataEnd = Math.max(dataEnd, start + timeStepToMinutes(row.time_step))
+  }
+  if (dataEnd <= 0) dataEnd = DAY_MINUTES
+  const configuredEnd = simEndMinutes.value
+  return Math.max(
+    simStartMinutes.value + sliderStepMinutes.value,
+    configuredEnd === null ? dataEnd : configuredEnd
+  )
+})
+
+const formatTimelineLabel = (minute: number): string => formatCalendarMinute(props.simStartDate, minute)
+const updateRangeStart = (value: number): void => { rangeStartMinutes.value = value }
+const updateRangeEnd = (value: number): void => { rangeEndMinutes.value = value }
+const updateDateRangeStart = (value: number): void => {
+  dateRangeStartMinutes.value = value
+  rangeStartMinutes.value = value
+  rangeEndMinutes.value = dateRangeEndMinutes.value
+}
+const updateDateRangeEnd = (value: number): void => {
+  dateRangeEndMinutes.value = value
+  rangeStartMinutes.value = dateRangeStartMinutes.value
+  rangeEndMinutes.value = value
+}
 
 const visibleRows = computed(() =>
-  props.rows.filter(row => isTimeInRange(row.timestamp, startTime.value, endTime.value))
+  props.rows.filter((row) => {
+    const minute = timeLabelToMinutes(row.timestamp)
+    return minute >= rangeStartMinutes.value && minute < rangeEndMinutes.value
+  })
 )
 
 const timeline = computed(() => [...new Set(visibleRows.value.map(row => row.timestamp))]
@@ -33,7 +90,11 @@ const valueByDirection = (direction: 'up' | 'down', field: 'device_flexibility' 
   const values = new Map(
     visibleRows.value
       .filter(row => row.direction === direction)
-      .map(row => [row.timestamp, Number(row[field] ?? row.device_flexibility)])
+      .map(row => {
+        const rawValue = Number(row[field] ?? row.device_flexibility)
+        const displayValue = direction === 'down' ? -rawValue : rawValue
+        return [row.timestamp, displayValue] as const
+      })
   )
   return timeline.value.map(timestamp => values.get(timestamp) ?? null)
 }
@@ -103,7 +164,13 @@ const render = () => {
     legend: {
       right: 12,
       top: 5,
-      itemWidth: 14,
+      data: series.map(item => ({
+        name: String(item.name ?? ''),
+        icon: String(item.id ?? '').endsWith('contribution')
+          ? DASHED_LINE_LEGEND_ICON
+          : SOLID_LINE_LEGEND_ICON
+      })),
+      itemWidth: 20,
       itemHeight: 8,
       textStyle: { fontSize: 10 }
     },
@@ -112,12 +179,15 @@ const render = () => {
       type: 'category',
       data: timeline.value,
       boundaryGap: false,
-      axisLabel: { fontSize: 10, hideOverlap: true },
+      axisLabel: {
+        fontSize: 10,
+        hideOverlap: true,
+        formatter: (value: string) => formatCalendarMinute(props.simStartDate, timeLabelToMinutes(value))
+      },
       axisLine: { lineStyle: { color: '#D0D5DD' } }
     },
     yAxis: {
       type: 'value',
-      min: 0,
       name: 'kW',
       nameTextStyle: { fontSize: 10, color: '#667085' },
       axisLabel: { fontSize: 10 },
@@ -135,7 +205,31 @@ const render = () => {
   })
 }
 
-watch(() => JSON.stringify(props.rows) + props.simStartTime + props.simEndTime, render)
+watch(sliderMax, (max, previousMax) => {
+  const previous = previousMax ?? 0
+  if (max > previous && dateRangeEndMinutes.value >= previous) dateRangeEndMinutes.value = max
+  else if (dateRangeEndMinutes.value > max) dateRangeEndMinutes.value = max
+  if (rangeEndMinutes.value > dateRangeEndMinutes.value) rangeEndMinutes.value = dateRangeEndMinutes.value
+  if (rangeStartMinutes.value >= max) rangeStartMinutes.value = simStartMinutes.value
+})
+
+watch(
+  [() => props.simStartTime, () => props.simEndTime],
+  () => {
+    dateRangeStartMinutes.value = simStartMinutes.value
+    dateRangeEndMinutes.value = sliderMax.value
+    rangeStartMinutes.value = simStartMinutes.value
+    rangeEndMinutes.value = sliderMax.value
+  },
+  { immediate: true }
+)
+
+watch([
+  () => JSON.stringify(props.rows),
+  () => props.simStartDate,
+  rangeStartMinutes,
+  rangeEndMinutes
+], render)
 
 onMounted(() => {
   render()
@@ -165,5 +259,27 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <div ref="chartRef" class="mt-2 h-44 w-full" />
+    <div class="px-4 pt-1">
+      <CalendarRangeInputs
+        v-if="simStartDate"
+        :base-date="simStartDate"
+        :start="dateRangeStartMinutes"
+        :end="dateRangeEndMinutes"
+        :min="simStartMinutes"
+        :max="sliderMax"
+        @update:start="updateDateRangeStart"
+        @update:end="updateDateRangeEnd"
+      />
+      <DualRangeSlider
+        :start="rangeStartMinutes"
+        :end="rangeEndMinutes"
+        :min="dateRangeStartMinutes"
+        :max="dateRangeEndMinutes"
+        :step="sliderStepMinutes"
+        :format-label="formatTimelineLabel"
+        @update:start="updateRangeStart"
+        @update:end="updateRangeEnd"
+      />
+    </div>
   </section>
 </template>

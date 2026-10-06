@@ -5,6 +5,17 @@
 
 export type InterpolateType = 'copy' | 'linear' | 'cubic' | 'spline'
 export type RandomDistribution = 'normal' | 'uniform' | 'exponential' | 'lognormal'
+export type BoundaryTimeMode = 'calendar'
+
+export interface BoundaryMetadata {
+  boundaryLength: string
+  boundaryStep: string
+  dayCount: number
+  pointCount: number
+  timeMode: BoundaryTimeMode
+  calendarStartDate?: string
+  calendarEndDate?: string
+}
 
 // 物理含义类型
 export type BoundaryMeaning =
@@ -56,12 +67,7 @@ export interface BoundaryItem {
     layers: { layerId: string; layerName: string; values: number[]; timestamps: string[] }[]
   }
   // boundary 元信息（长度和尺度）
-  boundaryMeta?: {
-    boundaryLength: string
-    boundaryStep: string
-    dayCount: number
-    pointCount: number
-  }
+  boundaryMeta?: BoundaryMetadata
 }
 
 // 边界数据（原始导入数据）

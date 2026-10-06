@@ -156,6 +156,8 @@ NumericPolicy
 - 每次任务保存最终 M、penalty、容差和推导依据；
 - solver adapter 统一 COPT 与开源求解器状态到内部 `SolverOutcome`；
 - 求解器专有配置不泄漏到组件模型。
+- 常规任务从项目快照的 `algorithm.solver` 读取求解器名称，当前只接受 `HiGHS|COPT`；旧项目缺少该字段时默认使用 COPT。
+- 模型构建统一通过 `create_jump_model` 创建 optimizer，组件和能量平衡代码不得直接实例化具体求解器。
 
 ## 8. 错误抽象
 

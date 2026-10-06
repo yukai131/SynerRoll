@@ -39,6 +39,7 @@ export interface SaveLayerConfigRequest {
 
 export interface UpdateAlgorithmConfigRequest {
   algorithm: AlgorithmConfig
+  solverConfig: import('./simulation').SolverConfig
 }
 
 export interface SimulationResponse {
@@ -73,6 +74,8 @@ export interface ComputeTask {
   params_hash: string
   sim_start_time: string
   sim_end_time: string | null
+  sim_start_date: string | null
+  sim_end_date: string | null
   cur_time: string | null
   created_at: string
   updated_at: string
@@ -99,6 +102,8 @@ export interface CreateTaskRequest {
   targetLayerId?: string
   simStartTime: string
   simEndTime?: string | null
+  simStartDate?: string | null
+  simEndDate?: string | null
   name?: string | null
 }
 

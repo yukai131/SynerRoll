@@ -1,5 +1,7 @@
 using Random
 
+const DEFAULT_BOUNDARY_START_DATE = "2026-01-01"
+
 function parse_boundary_data(
     data_array::Vector{Any},
     time_step::String,
@@ -110,7 +112,11 @@ Dict包含：
 function preprocess_boundary_data(
     data_array::Vector{Any},
     time_step::String,
+    ;
+    time_mode::String="calendar",
+    calendar_start_date::Union{String,Nothing}=DEFAULT_BOUNDARY_START_DATE,
 )
+    time_mode == "calendar" || error("边界数据必须绑定日期")
     # 解析时间步长（分钟）
     data_step_minutes = time_str_to_minutes(time_step)
     data_step_minutes > 0 || error("时间步长必须大于0")
@@ -134,6 +140,15 @@ function preprocess_boundary_data(
     total_minutes = truncate_point_count * data_step_minutes
     timestamps = generate_timestamps("0:00", time_step, "$(total_minutes)m")
 
+    effective_start_date = calendar_start_date === nothing ? DEFAULT_BOUNDARY_START_DATE : calendar_start_date
+    start_date = try
+        Date(effective_start_date, dateformat"yyyy-mm-dd")
+    catch
+        error("起始日期格式错误，请使用 YYYY-MM-DD")
+    end
+    calendar_start = Dates.format(start_date, dateformat"yyyy-mm-dd")
+    calendar_end = Dates.format(start_date + Day(day_count - 1), dateformat"yyyy-mm-dd")
+
     return Dict(
         "values" => truncated_values,
         "timestamps" => timestamps,
@@ -141,6 +156,9 @@ function preprocess_boundary_data(
         "totalHours" => day_count * 24,
         "dayCount" => day_count,
         "timeStep" => time_step,
+        "timeMode" => time_mode,
+        "calendarStartDate" => calendar_start,
+        "calendarEndDate" => calendar_end,
     )
 end
 
@@ -161,10 +179,37 @@ function ensure_boundary_config_table!(db_path::String)
                 boundary_step   TEXT NOT NULL,
                 day_count       INTEGER NOT NULL,
                 point_count     INTEGER NOT NULL,
+                time_mode       TEXT NOT NULL DEFAULT 'calendar',
+                calendar_start_date TEXT,
+                calendar_end_date   TEXT,
                 created_at      TEXT DEFAULT (datetime('now')),
                 updated_at      TEXT DEFAULT (datetime('now'))
             )
         """)
+        columns = _query(store.db, "PRAGMA table_info(boundary_config)")
+        column_names = Set(String(columns[2][i]) for i in eachindex(columns[1]))
+        if !("time_mode" in column_names)
+            _exec(store.db, "ALTER TABLE boundary_config ADD COLUMN time_mode TEXT NOT NULL DEFAULT 'calendar'")
+        end
+        if !("calendar_start_date" in column_names)
+            _exec(store.db, "ALTER TABLE boundary_config ADD COLUMN calendar_start_date TEXT")
+        end
+        if !("calendar_end_date" in column_names)
+            _exec(store.db, "ALTER TABLE boundary_config ADD COLUMN calendar_end_date TEXT")
+        end
+        # 历史的仅时长记录统一迁移为日历语义；缺少日期时以 2026-01-01 为首日。
+        _exec(store.db, """
+            UPDATE boundary_config
+            SET time_mode = 'calendar',
+                calendar_start_date = COALESCE(NULLIF(calendar_start_date, ''), ?),
+                calendar_end_date = COALESCE(
+                    NULLIF(calendar_end_date, ''),
+                    date(COALESCE(NULLIF(calendar_start_date, ''), ?), '+' || max(day_count - 1, 0) || ' days')
+                )
+            WHERE time_mode IS NULL OR time_mode <> 'calendar'
+               OR calendar_start_date IS NULL OR calendar_start_date = ''
+               OR calendar_end_date IS NULL OR calendar_end_date = ''
+        """, (DEFAULT_BOUNDARY_START_DATE, DEFAULT_BOUNDARY_START_DATE))
     end
     return nothing
 end
@@ -181,15 +226,23 @@ function save_boundary_config(
     boundary_step::String,
     day_count::Int,
     point_count::Int,
+    time_mode::String="calendar",
+    calendar_start_date::Union{String,Nothing}=DEFAULT_BOUNDARY_START_DATE,
+    calendar_end_date::Union{String,Nothing}=nothing,
 )
+    time_mode == "calendar" || error("边界数据必须绑定日期")
+    calendar_start_date === nothing && error("日历边界缺少起始日期")
+    calendar_end_date === nothing && error("日历边界缺少终止日期")
     ensure_boundary_config_table!(db_path)
     store = get_store(db_path)
     lock(store.write_lock) do
         _exec(store.db, """
             INSERT OR REPLACE INTO boundary_config
-                (boundary_id, boundary_length, boundary_step, day_count, point_count, updated_at)
-            VALUES (?, ?, ?, ?, ?, datetime('now'))
-        """, (boundary_id, boundary_length, boundary_step, day_count, point_count))
+                (boundary_id, boundary_length, boundary_step, day_count, point_count,
+                 time_mode, calendar_start_date, calendar_end_date, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        """, (boundary_id, boundary_length, boundary_step, day_count, point_count,
+               time_mode, calendar_start_date, calendar_end_date))
     end
     return nothing
 end
@@ -204,7 +257,8 @@ function get_boundary_config(db_path::String, boundary_id::String)
     store = get_store(db_path)
     return lock(store.write_lock) do
         rows = _query(store.db, """
-            SELECT boundary_length, boundary_step, day_count, point_count
+            SELECT boundary_length, boundary_step, day_count, point_count,
+                   time_mode, calendar_start_date, calendar_end_date
             FROM boundary_config WHERE boundary_id=?
         """, [boundary_id])
         isempty(rows[1]) && return nothing
@@ -213,6 +267,9 @@ function get_boundary_config(db_path::String, boundary_id::String)
             "boundaryStep" => String(rows[2][1]),
             "dayCount" => Int(rows[3][1]),
             "pointCount" => Int(rows[4][1]),
+            "timeMode" => "calendar",
+            "calendarStartDate" => String(rows[6][1]),
+            "calendarEndDate" => String(rows[7][1]),
         )
     end
 end
@@ -228,7 +285,8 @@ function get_all_boundary_configs(db_path::String)
     store = get_store(db_path)
     return lock(store.write_lock) do
         rows = _query(store.db, """
-            SELECT boundary_id, boundary_length, boundary_step, day_count, point_count
+            SELECT boundary_id, boundary_length, boundary_step, day_count, point_count,
+                   time_mode, calendar_start_date, calendar_end_date
             FROM boundary_config
         """)
         result = Dict{String, Dict}()
@@ -240,6 +298,9 @@ function get_all_boundary_configs(db_path::String)
                     "boundaryStep" => String(rows[3][i]),
                     "dayCount" => Int(rows[4][i]),
                     "pointCount" => Int(rows[5][i]),
+                    "timeMode" => "calendar",
+                    "calendarStartDate" => String(rows[7][i]),
+                    "calendarEndDate" => String(rows[8][i]),
                 )
             end
         end
@@ -506,13 +567,15 @@ end
 # 文档：docs/compute-task-architecture.md § 9
 
 """
-    seed_task_boundary_data(task_id, project_id, layer_id; sim_start_time, sim_end_time)
+    seed_task_boundary_data(task_id, project_id, layer_id;
+                            sim_start_time, sim_end_time, sim_start_date, sim_end_date, boundary_ids)
 
 从 `data/projects/<project_id>/boundary.db` 读所有
 `(source_id, var_name, layer_id, remark="planned")` 的元数据和数据，
 写入 `data/tasks/<task_id>/timeseries.db`。
 
-如果提供 `sim_start_time` 和 `sim_end_time`，则按仿真时间范围截断边界数据。
+日历任务按 `sim_start_date`、`sim_end_date` 截取自然日期范围并重新标记为任务局部时间；
+未提供日期范围的历史任务继续按 `sim_start_time`、`sim_end_time` 截断。`boundary_ids` 非空时只注入当前画布引用的边界。
 如果仿真时间范围大于边界数据本身的长度，报错。
 """
 function seed_task_boundary_data(
@@ -521,6 +584,9 @@ function seed_task_boundary_data(
     layer_id::String;
     sim_start_time::Union{String,Nothing}=nothing,
     sim_end_time::Union{String,Nothing}=nothing,
+    sim_start_date::Union{String,Nothing}=nothing,
+    sim_end_date::Union{String,Nothing}=nothing,
+    boundary_ids::Vector{String}=String[],
 )
     src_path = joinpath(BACKEND_DATA_DIR, "projects", project_id, "boundary.db")
     dst_path = joinpath(BACKEND_DATA_DIR, "tasks", task_id, "timeseries.db")
@@ -538,6 +604,12 @@ function seed_task_boundary_data(
     else
         nothing
     end
+    has_calendar_range = sim_start_date !== nothing || sim_end_date !== nothing
+    has_calendar_range && (sim_start_date === nothing || sim_end_date === nothing) &&
+        error("仿真起始日期和终止日期必须同时提供")
+    task_start_date = has_calendar_range ? Date(sim_start_date, dateformat"yyyy-mm-dd") : nothing
+    task_end_date = has_calendar_range ? Date(sim_end_date, dateformat"yyyy-mm-dd") : nothing
+    has_calendar_range && task_end_date < task_start_date && error("仿真终止日期不能早于起始日期")
 
     src_db = SQLite.DB(src_path)
     try
@@ -558,6 +630,7 @@ function seed_task_boundary_data(
             sid = meta_rows[1][i]
             source_id = meta_rows[2][i]
             var_name = meta_rows[3][i]
+            !isempty(boundary_ids) && !(String(source_id) in boundary_ids) && continue
             data_rows = _query(src_db,
                 "SELECT ts, value FROM time_series_data WHERE series_id=?",
                 [sid])
@@ -569,10 +642,44 @@ function seed_task_boundary_data(
             sorted_ts = timestamps[perm]
             sorted_vals = values[perm]
 
-            # 如果有仿真时间范围，检查并截断
-            if sim_duration_minutes !== nothing
+            boundary_config = get_boundary_config(src_path, String(source_id))
+
+            if has_calendar_range
+                boundary_config === nothing && error("边界 $(source_id) 缺少日期元信息，请重新提交边界配置")
+                boundary_config["timeMode"] == "calendar" || error(
+                    "边界 $(source_id) 未绑定日期，不能用于日期范围仿真"
+                )
+                boundary_start_date = Date(boundary_config["calendarStartDate"], dateformat"yyyy-mm-dd")
+                boundary_end_date = Date(boundary_config["calendarEndDate"], dateformat"yyyy-mm-dd")
+                (task_start_date < boundary_start_date || task_end_date > boundary_end_date) && error(
+                    "仿真日期 $(sim_start_date) 至 $(sim_end_date) 超出边界 $(source_id) 覆盖范围 " *
+                    "$(boundary_config["calendarStartDate"]) 至 $(boundary_config["calendarEndDate"])"
+                )
+
+                length(sorted_ts) >= 2 || error("边界 $(source_id) 数据点不足，无法按日期截取")
+                step_minutes = time_label_to_minutes(sorted_ts[2]) - time_label_to_minutes(sorted_ts[1])
+                step_minutes > 0 || error("边界 $(source_id) 的时间步长无效")
+                source_start_minutes = Dates.value(task_start_date - boundary_start_date) * 24 * 60
+                calendar_duration_minutes = (Dates.value(task_end_date - task_start_date) + 1) * 24 * 60
+                source_end_minutes = source_start_minutes + calendar_duration_minutes
+
+                selected_indices = findall(eachindex(sorted_ts)) do index
+                    source_minute = time_label_to_minutes(sorted_ts[index])
+                    source_minute >= source_start_minutes && source_minute < source_end_minutes
+                end
+                expected_count = calendar_duration_minutes ÷ step_minutes
+                length(selected_indices) == expected_count || error(
+                    "边界 $(source_id) 在所选日期范围内应有 $(expected_count) 个点，实际为 $(length(selected_indices)) 个点"
+                )
+                sorted_vals = sorted_vals[selected_indices]
+                sorted_ts = [
+                    minutes_to_time_label(time_label_to_minutes(sorted_ts[index]) - source_start_minutes)
+                    for index in selected_indices
+                ]
+
+            # 未绑定日历的旧任务继续按相对时长从序列开头截取。
+            elseif sim_duration_minutes !== nothing
                 # 获取 boundary 的实际时长（从 boundary_config 表）
-                boundary_config = get_boundary_config(src_path, source_id)
                 if boundary_config !== nothing
                     boundary_length_minutes = time_str_to_minutes(boundary_config["boundaryLength"])
                     # 如果仿真时间范围大于边界数据长度，报错

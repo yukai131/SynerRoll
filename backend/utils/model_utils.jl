@@ -1,4 +1,21 @@
 const BIG_M = 1e10
+const DEFAULT_SOLVER = "COPT"
+const SUPPORTED_SOLVERS = ("HiGHS", "COPT")
+
+function get_solver_name(algorithms::Dict{String,Any})
+    raw_name = strip(string(get(algorithms, "solver", DEFAULT_SOLVER)))
+    solver_name = lowercase(raw_name) == "highs" ? "HiGHS" : uppercase(raw_name)
+    solver_name in SUPPORTED_SOLVERS || error(
+        "Unsupported solver $(raw_name). Supported solvers: $(join(SUPPORTED_SOLVERS, ", ")).",
+    )
+    return solver_name
+end
+
+function solver_optimizer(solver_name::String)
+    solver_name == "HiGHS" && return HiGHS.Optimizer
+    solver_name == "COPT" && return COPT.Optimizer
+    error("Unsupported solver $(solver_name).")
+end
 
 function generate_timespan(layer::Dict{String, Any})
     span_value = Int(time_str_divide(layer["length"], layer["step"]))
@@ -9,7 +26,7 @@ step_hours(layer::Dict{String, Any}) = time_str_divide(layer["step"], "1h")
 
 function create_jump_model(algorithms::Dict{String, Any}; optimizer_factory=nothing)
     model = if optimizer_factory === nothing
-        Model(COPT.Optimizer)
+        Model(solver_optimizer(get_solver_name(algorithms)))
     else
         Model(optimizer_factory)
     end

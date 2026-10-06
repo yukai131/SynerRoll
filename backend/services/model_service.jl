@@ -581,13 +581,14 @@ function build_model_tracked(component_dicts::Vector, algorithms::Dict{String,An
 
     # ── 模型初始化 ────────────────────────────────────────────────────
     model = create_jump_model(algorithms; optimizer_factory=optimizer_factory)
+    solver_name = optimizer_factory === nothing ? get_solver_name(algorithms) : "COPT"
     record!(tracer, "# ═══════════════════════════════════════════════════════════")
     record!(tracer, "# 模型构建过程 — 自动生成")
     record!(tracer, "# 时层: $(layer["id"]) | 步长: $(layer["step"]) | 长度: $(layer["length"])")
     record!(tracer, "# ═══════════════════════════════════════════════════════════")
     record!(tracer, "")
-    record!(tracer, "using JuMP, COPT")
-    record!(tracer, "model = Model(COPT.Optimizer)")
+    record!(tracer, "using JuMP, $(solver_name)")
+    record!(tracer, "model = Model($(solver_name).Optimizer)")
     record!(tracer, "set_silent(model)")
     record!(tracer, "")
 

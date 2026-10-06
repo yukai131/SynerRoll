@@ -11,6 +11,8 @@ import type {
   TaskFlexibilityResponse
 } from '~~/types/api'
 import type { Project } from '~~/types/project'
+import type { BoundaryItem } from '~~/types/boundary'
+import type { FlexibilityDisplayWindow } from '~~/types/flexibility-display'
 import { useTaskApi } from '~~/composables/api/useTaskApi'
 import { useTaskWebSocket } from '~~/composables/api/useTaskWebSocket'
 import { useProjectApi } from '~~/composables/api/useProjectApi'
@@ -24,9 +26,16 @@ import {
   timeLabelToMinutes,
   minutesToTimeLabel
 } from '~~/utils/timeLabel'
+import {
+  DEFAULT_BOUNDARY_START_DATE,
+  deriveCalendarEndDate,
+  inclusiveCalendarDayCount,
+  isDateOnly
+} from '~~/utils/calendarTime'
 import PropertyText from '../../components/PropertyText.vue'
 import PropertySelect from '../../components/PropertySelect.vue'
 import DeviceOutputAnalysis from '~/components/DeviceOutputAnalysis.vue'
+import FlexibilityDemandComparisonModal from '~/components/FlexibilityDemandComparisonModal.vue'
 import PieChart from '~/components/PieChart.vue'
 
 definePageMeta({ title: '结果分析 - SynerRoll' })
@@ -57,7 +66,6 @@ const sections: AnalysisSection[] = [
   { key: 'energy-flow', label: '能流平衡分析', icon: '' },
   { key: 'device-output', label: '设备出力分析', icon: '' },
   { key: 'economy', label: '经济性分析', icon: '' },
-  { key: 'carbon', label: '碳排放分析', icon: '' },
   { key: 'stability', label: '稳定性分析', icon: '' },
   { key: 'flexibility', label: '系统灵活性量化评估', icon: '' },
   { key: 'device-flexibility', label: '设备灵活性量化评估', icon: '' },
@@ -118,7 +126,10 @@ interface BusConnection {
   variables: string[]
 }
 
+type EnergyFlowDisplayMode = 'balance' | 'loadTracking'
+
 const connectionData = ref<BusConnection[]>([])
+const energyFlowDisplayMode = ref<EnergyFlowDisplayMode>('balance')
 
 const loadConnectionData = async (taskId: string) => {
   try {
@@ -136,7 +147,8 @@ const layerOptions = computed(() => {
   if (!currentProject.value?.layerConfig?.layers) return []
   return currentProject.value.layerConfig.layers.map(l => ({
     value: l.id,
-    label: l.name
+    label: l.name,
+    stepMinutes: durationToMinutes(l.step) ?? 60
   }))
 })
 
@@ -207,6 +219,11 @@ function getChartDisplayName(key: string): string {
   return key
 }
 
+function getChartDeviceColorKey(key: string): string {
+  const { componentType, baseVarName } = parseVariableKey(key, knownCodes.value)
+  return `${componentType}_${baseVarName}`
+}
+
 // ───── 数据轮询 ─────
 let wsHandle: { close: () => void; send: (m: object) => void } | null = null
 const liveData = ref<Record<string, Record<string, { ts: string; value: number }[]>>>({})
@@ -248,6 +265,45 @@ const flexibilityPeriods = computed(() =>
       return timeDiff || FLEXIBILITY_DIRECTION_ORDER[a.direction] - FLEXIBILITY_DIRECTION_ORDER[b.direction]
     })
 )
+
+const flexibilityDisplayWindow = ref<FlexibilityDisplayWindow>({
+  dateStart: 0,
+  dateEnd: 24 * 60,
+  start: 0,
+  end: 24 * 60
+})
+const flexibilitySourceDisplayWindow = ref<FlexibilityDisplayWindow>({
+  dateStart: 0,
+  dateEnd: 24 * 60,
+  start: 0,
+  end: 24 * 60
+})
+const showFlexibilityDemandComparison = ref(false)
+
+watch(
+  [selectedTaskId, () => taskSimRange.value.start, () => taskSimRange.value.endMinutes],
+  () => {
+    const start = timeLabelToMinutes(taskSimRange.value.start)
+    const end = Math.max(start + 5, taskSimRange.value.endMinutes)
+    flexibilityDisplayWindow.value = { dateStart: start, dateEnd: end, start, end }
+    flexibilitySourceDisplayWindow.value = { dateStart: start, dateEnd: end, start, end }
+    showFlexibilityDemandComparison.value = false
+  },
+  { immediate: true }
+)
+
+watch(activeSection, () => { showFlexibilityDemandComparison.value = false })
+
+const updateFlexibilityDisplayWindow = (window: FlexibilityDisplayWindow): void => {
+  const current = flexibilityDisplayWindow.value
+  if (current.dateStart === window.dateStart && current.dateEnd === window.dateEnd
+    && current.start === window.start && current.end === window.end) return
+  flexibilityDisplayWindow.value = window
+}
+
+const updateFlexibilitySourceDisplayWindow = (window: FlexibilityDisplayWindow): void => {
+  flexibilitySourceDisplayWindow.value = window
+}
 
 interface DeviceFlexibilityGroup {
   key: string
@@ -752,6 +808,101 @@ const timeRange = ref('0:00-24:00')
 
 // 时间范围校验错误
 const timeRangeError = ref('')
+const simStartDate = ref('')
+const simEndDate = ref('')
+const dateRangeError = ref('')
+
+type CreationTimeMode = 'relative' | 'calendar' | 'invalid'
+
+const creationBoundaryIds = computed(() => new Set(
+  (creationCanvas.value?.nodes ?? [])
+    .flatMap(node => node.data?.business?.boundaryIds ?? [])
+    .map(String)
+))
+
+const creationBoundaries = computed<BoundaryItem[]>(() => {
+  const boundaries = creationProject.value?.boundaries ?? []
+  const ids = creationBoundaryIds.value
+  if (ids.size > 0) return boundaries.filter(boundary => ids.has(boundary.id))
+
+  const nodeIds = new Set((creationCanvas.value?.nodes ?? []).map(node => node.id))
+  return boundaries.filter(boundary => boundary.relatedComponents.some(componentId => nodeIds.has(componentId)))
+})
+
+const creationCalendarRanges = computed(() => creationBoundaries.value
+  .map((boundary) => {
+    const metadata = boundary.boundaryMeta
+    if (!metadata || metadata.dayCount <= 0) return null
+    const start = isDateOnly(metadata.calendarStartDate)
+      ? metadata.calendarStartDate
+      : DEFAULT_BOUNDARY_START_DATE
+    const end = isDateOnly(metadata.calendarEndDate)
+      ? metadata.calendarEndDate
+      : deriveCalendarEndDate(start, metadata.dayCount)
+    return isDateOnly(end) ? { start, end } : null
+  })
+  .filter((range): range is { start: string; end: string } => Boolean(range)))
+
+const creationTimeMode = computed<CreationTimeMode>(() => {
+  if (creationBoundaries.value.length === 0) return 'relative'
+  return creationCalendarRanges.value.length === creationBoundaries.value.length
+    ? 'calendar'
+    : 'invalid'
+})
+
+const commonCalendarCoverage = computed(() => {
+  if (creationTimeMode.value !== 'calendar') return null
+  const starts = creationCalendarRanges.value.map(range => range.start)
+  const ends = creationCalendarRanges.value.map(range => range.end)
+  const start = starts.sort().at(-1) ?? ''
+  const end = ends.sort().at(0) ?? ''
+  return start && end && start <= end ? { start, end } : null
+})
+
+const calendarDurationDays = computed(() =>
+  inclusiveCalendarDayCount(simStartDate.value, simEndDate.value)
+)
+
+const validateCalendarRange = (): boolean => {
+  if (creationTimeMode.value === 'invalid') {
+    dateRangeError.value = '当前画布关联边界缺少有效的日期覆盖信息，请先重新导入并提交边界数据。'
+    return false
+  }
+  if (creationTimeMode.value !== 'calendar') {
+    dateRangeError.value = ''
+    return true
+  }
+  const coverage = commonCalendarCoverage.value
+  if (!coverage) {
+    dateRangeError.value = '相关边界的日期覆盖范围没有交集。'
+    return false
+  }
+  if (!isDateOnly(simStartDate.value) || !isDateOnly(simEndDate.value)) {
+    dateRangeError.value = '请选择仿真起始日期和终止日期。'
+    return false
+  }
+  if (simStartDate.value < coverage.start || simEndDate.value > coverage.end) {
+    dateRangeError.value = `仿真日期必须位于共同覆盖范围 ${coverage.start} 至 ${coverage.end} 内。`
+    return false
+  }
+  if (simEndDate.value < simStartDate.value) {
+    dateRangeError.value = '终止日期不能早于起始日期。'
+    return false
+  }
+  dateRangeError.value = ''
+  return true
+}
+
+watch(commonCalendarCoverage, (coverage) => {
+  if (!coverage) {
+    simStartDate.value = ''
+    simEndDate.value = ''
+    return
+  }
+  simStartDate.value = coverage.start
+  simEndDate.value = coverage.end
+  dateRangeError.value = ''
+}, { immediate: true })
 
 // 当项目加载后，用layer1的小时数初始化
 watch(layer1Hours, (val) => {
@@ -803,6 +954,9 @@ const validateTimeRange = (value: string) => {
 
 // 解析结束时间的小时数
 const parsedEndHour = computed(() => {
+  if (creationTimeMode.value === 'calendar' && calendarDurationDays.value) {
+    return calendarDurationDays.value * 24
+  }
   const match = /^(\d+):(\d{2})\s*[-~]\s*(\d+):(\d{2})$/.exec(timeRange.value.trim())
   if (!match) return 24
   return parseInt(match[3], 10)
@@ -1161,7 +1315,11 @@ const createTask = async () => {
     push({ tone: 'warning', title: '请填写 projectId' })
     return
   }
-  if (!validateTimeRange(timeRange.value)) {
+  if (!validateCalendarRange()) {
+    push({ tone: 'warning', title: '仿真日期范围不可用', description: dateRangeError.value })
+    return
+  }
+  if (creationTimeMode.value === 'relative' && !validateTimeRange(timeRange.value)) {
     push({ tone: 'warning', title: '时间范围格式错误', description: timeRangeError.value })
     return
   }
@@ -1178,6 +1336,8 @@ const createTask = async () => {
       targetLayerId: newTask.simMode === 'single_layer' ? newTask.targetLayerId : undefined,
       simStartTime: '0:00',
       simEndTime: simEndTime.value,
+      simStartDate: creationTimeMode.value === 'calendar' ? simStartDate.value : null,
+      simEndDate: creationTimeMode.value === 'calendar' ? simEndDate.value : null,
       name: newTask.name || null,
       flexibility
     })
@@ -1258,6 +1418,9 @@ const createTask = async () => {
               <div class="text-sm font-medium">
                 任务: {{ selectedTask.name ?? selectedTask.id.slice(0, 8) }}
               </div>
+              <div v-if="selectedTask.sim_start_date && selectedTask.sim_end_date" class="mt-1 text-xs text-app-muted">
+                仿真日期：{{ selectedTask.sim_start_date }} 至 {{ selectedTask.sim_end_date }}
+              </div>
             </div>
             <div class="flex items-center gap-2">
               <span
@@ -1298,10 +1461,12 @@ const createTask = async () => {
                 <TaskSeriesChart
                   :layers="layers"
                   :title="getChartDisplayName(String(key))"
+                  :device-color-key="getChartDeviceColorKey(String(key))"
                   :unit="liveDataUnits[String(key)] ?? 'kW'"
                   :layer-names="layerNames"
                   :sim-start-time="taskSimRange.start"
                   :sim-end-time="taskSimRange.end"
+                  :sim-start-date="selectedTask.sim_start_date"
                 />
               </div>
             </div>
@@ -1376,23 +1541,50 @@ const createTask = async () => {
               </section>
 
               <div v-if="flexibilityPeriods.length" class="grid gap-3">
+                <FlexibilityRequirementSourceChart
+                  :key="selectedTask.id"
+                  :rows="flexibilityPeriods"
+                  :source="flexibilityConfig.requirementSource"
+                  :display-window="flexibilitySourceDisplayWindow"
+                  @update:display-window="updateFlexibilitySourceDisplayWindow"
+                  @open-demand-comparison="showFlexibilityDemandComparison = true"
+                  :sim-start-time="taskSimRange.start"
+                  :sim-end-minutes="taskSimRange.endMinutes"
+                  :sim-start-date="selectedTask.sim_start_date"
+                />
                 <FlexibilitySeriesChart
                   :rows="flexibilityPeriods"
                   :device-labels="codeToLabel"
                   direction="up"
+                  :display-window="flexibilityDisplayWindow"
+                  @update:display-window="updateFlexibilityDisplayWindow"
                   :sim-start-time="taskSimRange.start"
                   :sim-end-time="taskSimRange.end"
                   :sim-end-minutes="taskSimRange.endMinutes"
+                  :sim-start-date="selectedTask.sim_start_date"
                 />
                 <FlexibilitySeriesChart
                   :rows="flexibilityPeriods"
                   :device-labels="codeToLabel"
                   direction="down"
+                  :display-window="flexibilityDisplayWindow"
+                  @update:display-window="updateFlexibilityDisplayWindow"
                   :sim-start-time="taskSimRange.start"
                   :sim-end-time="taskSimRange.end"
                   :sim-end-minutes="taskSimRange.endMinutes"
+                  :sim-start-date="selectedTask.sim_start_date"
                 />
               </div>
+
+              <FlexibilityDemandComparisonModal
+                v-if="showFlexibilityDemandComparison && flexibilityConfig.requirementSource === 'net_load_change'"
+                :rows="flexibilityPeriods"
+                :initial-window="flexibilitySourceDisplayWindow"
+                :sim-start-time="taskSimRange.start"
+                :sim-end-minutes="taskSimRange.endMinutes"
+                :sim-start-date="selectedTask.sim_start_date"
+                @close="showFlexibilityDemandComparison = false"
+              />
 
               <div v-if="!flexibilityPeriods.length" class="flex min-h-52 items-center justify-center rounded-[12px] border border-dashed border-app-border text-sm text-app-muted">
                 {{ selectedTask.status === 'completed' ? '任务已完成，但暂无灵活性评价结果。' : '任务运行中，正在等待灵活性逐时段结果...' }}
@@ -1431,6 +1623,7 @@ const createTask = async () => {
                 :boundary="device.boundary"
                 :sim-start-time="taskSimRange.start"
                 :sim-end-time="taskSimRange.end"
+                :sim-start-date="selectedTask.sim_start_date"
               />
             </div>
 
@@ -1447,26 +1640,46 @@ const createTask = async () => {
             >
               等待任务数据...
             </div>
-            <div v-else class="flex-1 min-h-0 overflow-y-auto space-y-6">
-              <div
-                v-for="bus in connectionData"
-                :key="bus.busCode"
-                class="space-y-3"
-              >
+            <div v-else class="flex-1 min-h-0 flex flex-col gap-3">
+              <div class="flex flex-shrink-0 items-center justify-end gap-2">
+                <AppButton
+                  label="能流平衡模式"
+                  size="md"
+                  :tone="energyFlowDisplayMode === 'balance' ? 'primary' : 'neutral'"
+                  @click="energyFlowDisplayMode = 'balance'"
+                />
+                <AppButton
+                  label="负荷跟踪模式"
+                  size="md"
+                  :tone="energyFlowDisplayMode === 'loadTracking' ? 'primary' : 'neutral'"
+                  @click="energyFlowDisplayMode = 'loadTracking'"
+                />
+              </div>
+
+              <div class="flex-1 min-h-0 overflow-y-auto space-y-6">
                 <div
-                  v-for="layer in layerOptions"
-                  :key="layer.value"
-                  class="border border-app-border rounded p-3"
+                  v-for="bus in connectionData"
+                  :key="bus.busCode"
+                  class="space-y-3"
                 >
-                  <EnergyFlowChart
-                    :bus-label="`${bus.busLabel} · ${layer.label}`"
-                    :variables="bus.variables"
-                    :live-data="liveData"
-                    :layer-id="layer.value"
-                    :code-to-label="codeToLabel"
-                    :sim-start-time="taskSimRange.start"
-                    :sim-end-time="taskSimRange.end"
-                  />
+                  <div
+                    v-for="layer in layerOptions"
+                    :key="layer.value"
+                    class="border border-app-border rounded p-3"
+                  >
+                    <EnergyFlowChart
+                      :bus-label="`${bus.busLabel} · ${layer.label}`"
+                      :variables="bus.variables"
+                      :live-data="liveData"
+                      :layer-id="layer.value"
+                      :code-to-label="codeToLabel"
+                      :display-mode="energyFlowDisplayMode"
+                      :time-step-minutes="layer.stepMinutes"
+                      :sim-start-time="taskSimRange.start"
+                      :sim-end-time="taskSimRange.end"
+                      :sim-start-date="selectedTask.sim_start_date"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1483,6 +1696,7 @@ const createTask = async () => {
               :layer-options="layerOptions"
               :sim-start-time="taskSimRange.start"
               :sim-end-time="taskSimRange.end"
+              :sim-start-date="selectedTask.sim_start_date"
             />
           </div>
 
@@ -1754,7 +1968,7 @@ const createTask = async () => {
                 />
               </div>
             </div>
-            <!-- 运行方式、开始时间、结束时间在同一行 -->
+            <!-- 无关联边界的任务仍使用相对时间范围 -->
             <div class="property-row-double">
               <div class="flex items-center gap-2 flex-1">
                 <label class="property-label">运行方式</label>
@@ -1764,15 +1978,52 @@ const createTask = async () => {
                   :disabled="true"
                 />
               </div>
-              <div class="flex items-center gap-2 flex-1">
+              <div v-if="creationTimeMode !== 'calendar'" class="flex items-center gap-2 flex-1">
                 <label class="property-label">时间范围</label>
                 <div class="flex-1">
                   <PropertyText
                     :model-value="timeRange"
                     placeholder="0:00-24:00"
+                    :disabled="creationTimeMode === 'invalid'"
                     @update:model-value="onTimeRangeChange"
                   />
                   <p v-if="timeRangeError" class="text-xs text-red-500 mt-1">{{ timeRangeError }}</p>
+                  <p v-if="creationTimeMode === 'invalid'" class="mt-1 text-xs text-app-danger">
+                    当前画布关联边界缺少有效的日期覆盖信息，请先重新导入并提交边界数据。
+                  </p>
+                </div>
+              </div>
+            </div>
+            <!-- 日历模式使用独立区域，避免起止日期并排时内容被截断 -->
+            <div v-if="creationTimeMode === 'calendar'" class="property-row-double calendar-date-row">
+              <label class="property-label">仿真日期</label>
+              <div class="min-w-0 flex-1 space-y-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-[70px] flex-shrink-0 text-sm text-app-muted">起始日期</span>
+                  <AppDateInput
+                    v-model="simStartDate"
+                    class="min-w-0 flex-1"
+                    :min="commonCalendarCoverage?.start"
+                    :max="simEndDate || commonCalendarCoverage?.end"
+                    @change="validateCalendarRange"
+                  />
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-[70px] flex-shrink-0 text-sm text-app-muted">终止日期</span>
+                  <AppDateInput
+                    v-model="simEndDate"
+                    class="min-w-0 flex-1"
+                    :min="simStartDate || commonCalendarCoverage?.start"
+                    :max="commonCalendarCoverage?.end"
+                    @change="validateCalendarRange"
+                  />
+                </div>
+                <div class="flex items-center gap-6 whitespace-nowrap pl-[78px] text-xs text-app-muted">
+                  <p>当前仿真时长：{{ calendarDurationDays ?? 0 }} 天</p>
+                  <p>可选日期范围：{{ commonCalendarCoverage?.start }} 至 {{ commonCalendarCoverage?.end }}</p>
+                </div>
+                <div class="pl-[78px] text-xs">
+                  <p v-if="dateRangeError" class="mt-1 text-app-danger">{{ dateRangeError }}</p>
                 </div>
               </div>
             </div>
@@ -1968,6 +2219,14 @@ const createTask = async () => {
 .property-row-double .property-label {
   width: 70px;
   flex-shrink: 0;
+}
+
+.calendar-date-row {
+  align-items: flex-start;
+}
+
+.calendar-date-row > .property-label {
+  padding-top: 30px;
 }
 
 .property-label {

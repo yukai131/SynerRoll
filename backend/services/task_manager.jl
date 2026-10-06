@@ -42,6 +42,8 @@ function TaskStore()
             params_hash     TEXT NOT NULL,
             sim_start_time  TEXT NOT NULL,
             sim_end_time    TEXT,
+            sim_start_date  TEXT,
+            sim_end_date    TEXT,
             cur_time        TEXT,
             created_at      TEXT NOT NULL,
             updated_at      TEXT NOT NULL,
@@ -57,6 +59,12 @@ function TaskStore()
     if "current_time" in col_names && !("cur_time" in col_names)
         DBInterface.execute(db, "ALTER TABLE tasks RENAME COLUMN current_time TO cur_time")
         @info "TaskStore: 已迁移 current_time → cur_time"
+    end
+    if !("sim_start_date" in col_names)
+        DBInterface.execute(db, "ALTER TABLE tasks ADD COLUMN sim_start_date TEXT")
+    end
+    if !("sim_end_date" in col_names)
+        DBInterface.execute(db, "ALTER TABLE tasks ADD COLUMN sim_end_date TEXT")
     end
     DBInterface.execute(db, "CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id)")
     DBInterface.execute(db, "CREATE INDEX IF NOT EXISTS idx_tasks_status  ON tasks(status)")
@@ -218,17 +226,20 @@ function insert_task!(; id::String, project_id::String, canvas_id::String,
                       layer_id::String, mode::String, name::Union{String, Nothing},
                       sim_start_time::String, sim_end_time::Union{String, Nothing},
                       params_hash::String,
+                      sim_start_date::Union{String, Nothing}=nothing,
+                      sim_end_date::Union{String, Nothing}=nothing,
                       extra_json::Union{String,Nothing}=nothing)
     store = get_task_store()
     now_s = now_iso()
     DBInterface.execute(store.db, """
         INSERT INTO tasks (id, project_id, canvas_id, layer_id, mode, name,
                            status, params_hash, sim_start_time, sim_end_time,
-                           cur_time, created_at, updated_at, extra_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           sim_start_date, sim_end_date, cur_time, created_at,
+                           updated_at, extra_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, [id, project_id, canvas_id, layer_id, mode, name,
           TASK_PENDING, params_hash, sim_start_time, sim_end_time,
-          nothing, now_s, now_s, extra_json])
+          sim_start_date, sim_end_date, nothing, now_s, now_s, extra_json])
     return nothing
 end
 
@@ -245,8 +256,8 @@ function get_task(task_id::String)
     rows = DBInterface.execute(store.db, """
         SELECT id, project_id, canvas_id, layer_id, mode, name, status,
                params_hash, sim_start_time, sim_end_time, cur_time,
-               created_at, updated_at, started_at, finished_at,
-               error_message, extra_json
+               sim_start_date, sim_end_date, created_at, updated_at,
+               started_at, finished_at, error_message, extra_json
         FROM tasks WHERE id=?
     """, [task_id]) |> columntable
     isempty(rows[1]) && return nothing
@@ -255,17 +266,18 @@ function get_task(task_id::String)
         "layer_id" => rows[4][1], "mode" => rows[5][1], "name" => _n(rows[6][1]),
         "status" => rows[7][1], "params_hash" => rows[8][1],
         "sim_start_time" => rows[9][1], "sim_end_time" => _n(rows[10][1]),
-        "cur_time" => _n(rows[11][1]), "created_at" => rows[12][1],
-        "updated_at" => rows[13][1], "started_at" => _n(rows[14][1]),
-        "finished_at" => _n(rows[15][1]), "error_message" => _n(rows[16][1]),
-        "extra_json" => _n(rows[17][1])
+        "cur_time" => _n(rows[11][1]), "sim_start_date" => _n(rows[12][1]),
+        "sim_end_date" => _n(rows[13][1]), "created_at" => rows[14][1],
+        "updated_at" => rows[15][1], "started_at" => _n(rows[16][1]),
+        "finished_at" => _n(rows[17][1]), "error_message" => _n(rows[18][1]),
+        "extra_json" => _n(rows[19][1])
     )
 end
 
 function list_tasks(; project_id::Union{String, Nothing}=nothing,
                     status::Union{String, Nothing}=nothing)
     store = get_task_store()
-    sql = "SELECT id, project_id, canvas_id, layer_id, mode, name, status, cur_time, sim_end_time, created_at, updated_at, finished_at, error_message FROM tasks WHERE 1=1"
+    sql = "SELECT id, project_id, canvas_id, layer_id, mode, name, status, cur_time, sim_start_time, sim_end_time, sim_start_date, sim_end_date, created_at, updated_at, finished_at, error_message FROM tasks WHERE 1=1"
     params = String[]
     if project_id !== nothing
         sql *= " AND project_id=?"
@@ -282,9 +294,10 @@ function list_tasks(; project_id::Union{String, Nothing}=nothing,
         "id" => rows[1][i], "project_id" => rows[2][i], "canvas_id" => rows[3][i],
         "layer_id" => rows[4][i], "mode" => rows[5][i], "name" => _n(rows[6][i]),
         "status" => rows[7][i], "cur_time" => _n(rows[8][i]),
-        "sim_end_time" => _n(rows[9][i]), "created_at" => rows[10][i],
-        "updated_at" => rows[11][i], "finished_at" => _n(rows[12][i]),
-        "error_message" => _n(rows[13][i])
+        "sim_start_time" => rows[9][i], "sim_end_time" => _n(rows[10][i]),
+        "sim_start_date" => _n(rows[11][i]), "sim_end_date" => _n(rows[12][i]),
+        "created_at" => rows[13][i], "updated_at" => rows[14][i],
+        "finished_at" => _n(rows[15][i]), "error_message" => _n(rows[16][i])
     ) for i in 1:length(rows[1])]
 end
 

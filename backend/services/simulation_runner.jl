@@ -114,22 +114,56 @@ end
 # ════════════════════════════════════════════════════════════════
 
 """
-    _inject_boundary_phase(ctx, task_id, store_path, project_id, all_layers; sim_start_time, sim_end_time)
+    _inject_boundary_phase(ctx, task_id, store_path, project_id, all_layers;
+                           sim_start_time, sim_end_time, sim_start_date, sim_end_date)
 
 执行边界注入阶段：seed 边界数据到时序数据库。
 基于 max_layer 的尺度生成唯一一组边界数据，按仿真时间范围截断。
 返回 true（成功）或 nothing（失败时）。
 """
+function _canvas_boundary_ids(project_json::Dict, canvas_id::String)::Vector{String}
+    workspace = get(project_json, "workspace", Dict())
+    canvases = get(workspace, "canvases", [])
+    canvas = findfirst(item -> string(get(item, "id", "")) == canvas_id, canvases)
+    canvas === nothing && return String[]
+
+    nodes = get(canvases[canvas], "nodes", [])
+    node_ids = Set(string(get(node, "id", "")) for node in nodes)
+    ids = Set{String}()
+    for node in nodes
+        data = get(node, "data", Dict())
+        business = get(data, "business", Dict())
+        for boundary_id in get(business, "boundaryIds", [])
+            push!(ids, string(boundary_id))
+        end
+    end
+
+    if isempty(ids)
+        for boundary in get(project_json, "boundaries", [])
+            related = Set(string(id) for id in get(boundary, "relatedComponents", []))
+            !isempty(intersect(node_ids, related)) && push!(ids, string(get(boundary, "id", "")))
+        end
+        delete!(ids, "")
+    end
+    return sort!(collect(ids))
+end
+
 function _inject_boundary_phase(
     ctx, task_id::String, store_path::String, project_id::String, all_layers::Dict{String,Any};
     sim_start_time::Union{String,Nothing}=nothing,
     sim_end_time::Union{String,Nothing}=nothing,
+    sim_start_date::Union{String,Nothing}=nothing,
+    sim_end_date::Union{String,Nothing}=nothing,
+    boundary_ids::Vector{String}=String[],
 )
     try
         n = seed_task_boundary_data(
             task_id, project_id, get_max_layer_id(all_layers);
             sim_start_time=sim_start_time,
             sim_end_time=sim_end_time,
+            sim_start_date=sim_start_date,
+            sim_end_date=sim_end_date,
+            boundary_ids=boundary_ids,
         )
         # 确保 timeseries.db 始终存在（即使 seed 没找到数据）
         get_store(store_path)
@@ -398,6 +432,9 @@ function run_single_layer_task(task_id::String, task::Dict)
             ctx, task_id, store_path, task["project_id"], all_layers;
             sim_start_time=get(task, "sim_start_time", nothing),
             sim_end_time=get(task, "sim_end_time", nothing),
+            sim_start_date=get(task, "sim_start_date", nothing),
+            sim_end_date=get(task, "sim_end_date", nothing),
+            boundary_ids=_canvas_boundary_ids(project_json, string(task["canvas_id"])),
         )
         boundary_result === nothing && return nothing
 
@@ -547,6 +584,9 @@ function run_task(task_id::String, task::Dict)
             ctx, task_id, store_path, task["project_id"], all_layers;
             sim_start_time=get(task, "sim_start_time", nothing),
             sim_end_time=get(task, "sim_end_time", nothing),
+            sim_start_date=get(task, "sim_start_date", nothing),
+            sim_end_date=get(task, "sim_end_date", nothing),
+            boundary_ids=_canvas_boundary_ids(project_json, string(task["canvas_id"])),
         )
         boundary_result === nothing && return nothing
 

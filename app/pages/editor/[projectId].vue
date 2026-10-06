@@ -982,7 +982,7 @@ onBeforeUnmount(() => {
     <!-- 算法配置弹窗 -->
     <AlgorithmConfigModal
       :open="showAlgorithmConfigModal"
-      :algorithm="project?.algorithm ?? { electricityLoadPrediction: 'None', windTurbinePrediction: 'None', optimizationAlgorithm: 'MILP', slackEnabled: false, slackPenalty: 1000000 }"
+      :algorithm="project?.algorithm ?? { electricityLoadPrediction: 'None', windTurbinePrediction: 'None', optimizationAlgorithm: 'MILP', solver: 'COPT', slackEnabled: false, slackPenalty: 1000000 }"
       @close="showAlgorithmConfigModal = false"
       @confirm="handleAlgorithmConfigConfirm"
     />

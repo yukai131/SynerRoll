@@ -16,6 +16,7 @@ import type { BoundaryMeaning } from '~~/types/boundary'
 
 import componentLibraryData from './component-library.json'
 import { componentUIConfigs } from './component-ui-config'
+import { getDeviceColor } from './device-colors'
 
 // ============================================================
 // 组件分组定义
@@ -229,7 +230,7 @@ const parseComponentDefinition = (key: string, data: LibraryComponent): Componen
     canvasType: ui?.canvasType ?? 'energy',
     defaultSize: ui?.defaultSize ?? { width: 150, height: 150 },
     appearance: ui?.appearance ?? {
-      fillColor: '#F8FAFC', strokeColor: '#98A2B3', strokeWidth: 1.5,
+      fillColor: '#F8FAFC', strokeColor: getDeviceColor(key), strokeWidth: 1.5,
       fontSize: 13, textColor: '#1D2939', borderRadius: 10, rotation: 0, opacity: 1
     },
     ports: data.ports.map(p => ({

@@ -20,6 +20,8 @@ using UUIDs: uuid4
         mode        = get(body, "mode", "offline")
         sim_start   = require_string(body, "simStartTime")
         sim_end     = optional_string(body, "simEndTime", "")
+        sim_start_date_raw = optional_string(body, "simStartDate", "")
+        sim_end_date_raw = optional_string(body, "simEndDate", "")
         name        = optional_string(body, "name", "")
         params_json = JSON3.write(body)
         params_hash = bytes2hex(SHA.sha256(params_json))
@@ -32,6 +34,15 @@ using UUIDs: uuid4
 
         task_id = string(uuid4())
         sim_end_val = isempty(sim_end) ? nothing : sim_end
+        sim_start_date = isempty(sim_start_date_raw) ? nothing : sim_start_date_raw
+        sim_end_date = isempty(sim_end_date_raw) ? nothing : sim_end_date_raw
+        (sim_start_date === nothing) != (sim_end_date === nothing) &&
+            error("仿真起始日期和终止日期必须同时提供")
+        if sim_start_date !== nothing
+            start_date = Date(sim_start_date, dateformat"yyyy-mm-dd")
+            end_date = Date(sim_end_date, dateformat"yyyy-mm-dd")
+            end_date < start_date && error("仿真终止日期不能早于起始日期")
+        end
         name_val = isempty(name) ? nothing : name
         flexibility_config = normalize_flexibility_evaluation_config(
             get(body, "flexibility", nothing);
@@ -56,6 +67,8 @@ using UUIDs: uuid4
             name            = name_val,
             sim_start_time  = sim_start,
             sim_end_time    = sim_end_val,
+            sim_start_date  = sim_start_date,
+            sim_end_date    = sim_end_date,
             params_hash     = params_hash,
             extra_json      = extra_json,
         )

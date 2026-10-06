@@ -7,6 +7,7 @@ using CSV
 using DataFrames
 using SHA
 using COPT
+using HiGHS
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 模块加载
@@ -244,12 +245,19 @@ end
         file_path = require_string(body, "filePath")
         column_name = require_string(body, "columnName")
         time_step = optional_string(body, "timeStep", "1h")
+        calendar_start_date_raw = optional_string(body, "calendarStartDate", DEFAULT_BOUNDARY_START_DATE)
+        calendar_start_date = isempty(calendar_start_date_raw) ? DEFAULT_BOUNDARY_START_DATE : calendar_start_date_raw
 
         col_data, _ = read_csv_column(file_path, column_name)
         raw_values = extract_float_column(col_data)
 
         # 调用预处理函数：截断到24h的倍数
-        result = preprocess_boundary_data(Vector{Any}(raw_values), time_step)
+        result = preprocess_boundary_data(
+            Vector{Any}(raw_values),
+            time_step;
+            time_mode="calendar",
+            calendar_start_date=calendar_start_date,
+        )
 
         return json_success(data=Dict(
             "values" => result["values"],
@@ -260,6 +268,9 @@ end
             "totalHours" => result["totalHours"],
             "dayCount" => result["dayCount"],
             "timeStep" => result["timeStep"],
+            "timeMode" => result["timeMode"],
+            "calendarStartDate" => result["calendarStartDate"],
+            "calendarEndDate" => result["calendarEndDate"],
         ))
     catch e
         return json_error("导入异常: $(sprint(showerror, e))")
@@ -385,9 +396,29 @@ end
                 boundary_step = optional_string(first_boundary, "boundaryStep", "")
                 day_count = get(first_boundary, "dayCount", 0)
                 point_count = get(first_boundary, "pointCount", 0)
+                time_mode = "calendar"
+                calendar_start_raw = optional_string(first_boundary, "calendarStartDate", DEFAULT_BOUNDARY_START_DATE)
+                calendar_end_raw = optional_string(first_boundary, "calendarEndDate", "")
+                calendar_start_date = isempty(calendar_start_raw) ? DEFAULT_BOUNDARY_START_DATE : calendar_start_raw
+                calendar_end_date = if isempty(calendar_end_raw)
+                    start_date = Date(calendar_start_date, dateformat"yyyy-mm-dd")
+                    Dates.format(start_date + Day(max(Int(day_count) - 1, 0)), dateformat"yyyy-mm-dd")
+                else
+                    calendar_end_raw
+                end
 
                 if !isempty(boundary_length) && !isempty(boundary_step)
-                    save_boundary_config(db_path, bid, boundary_length, boundary_step, day_count, point_count)
+                    save_boundary_config(
+                        db_path,
+                        bid,
+                        boundary_length,
+                        boundary_step,
+                        day_count,
+                        point_count,
+                        time_mode,
+                        calendar_start_date,
+                        calendar_end_date,
+                    )
                     @info "boundary config saved: bid=$bid length=$boundary_length step=$boundary_step"
                 end
             end
@@ -425,10 +456,16 @@ end
             layer_id = optional_string(boundary, "layerId", "1")
             meaning = get(boundary, "meaning", nothing)
             boundary_id = optional_string(boundary, "boundaryId", "")
+            config = isempty(boundary_id) ? nothing : get_boundary_config(db_path, boundary_id)
 
             # 保留 lenient：缺 meaning / boundaryId 的 entry 标 found=false
             if meaning === nothing || isempty(boundary_id)
-                push!(loaded_boundaries, Dict("layerId" => layer_id, "found" => false))
+                push!(loaded_boundaries, Dict(
+                    "boundaryId" => boundary_id,
+                    "layerId" => layer_id,
+                    "found" => false,
+                    "config" => config,
+                ))
                 all_found = false
                 continue
             end
@@ -442,13 +479,20 @@ end
 
             if ts !== nothing
                 push!(loaded_boundaries, Dict(
+                    "boundaryId" => boundary_id,
                     "layerId" => layer_id,
                     "found" => true,
                     "values" => ts.values,
                     "timestamps" => ts.timestamps,
+                    "config" => config,
                 ))
             else
-                push!(loaded_boundaries, Dict("layerId" => layer_id, "found" => false))
+                push!(loaded_boundaries, Dict(
+                    "boundaryId" => boundary_id,
+                    "layerId" => layer_id,
+                    "found" => false,
+                    "config" => config,
+                ))
                 all_found = false
             end
         end

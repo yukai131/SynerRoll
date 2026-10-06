@@ -47,6 +47,7 @@ const props = defineProps<{
   layerOptions: LayerOption[]
   simStartTime?: string
   simEndTime?: string | null
+  simStartDate?: string | null
 }>()
 
 const selectedLayerIds = ref<string[]>([])
@@ -523,6 +524,7 @@ function openParameters(): void {
           :trace-error="chart.traceError || traceStepsError"
           :minimum-minute="minimumMinute"
           :maximum-minute="maximumMinute"
+          :sim-start-date="simStartDate"
           :class="charts.length === 1 ? 'min-h-full' : ''"
           @delete="deleteChart(chart.id)"
           @edit-variables="openVariableSelector(chart.id)"

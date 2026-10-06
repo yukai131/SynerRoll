@@ -4,6 +4,7 @@ import type {
   ProjectListResponse,
   SaveCanvasRequest,
   SaveLayerConfigRequest,
+  UpdateAlgorithmConfigRequest,
   UpdateProjectRequest
 } from '~~/types/api'
 import type { AlgorithmConfig, SolverConfig } from '~~/types/simulation'
@@ -25,7 +26,7 @@ export const useProjectApi = () => {
       apiClient.mutate<ProjectDetailResponse>(`/project/${projectId}/canvas`, { method: 'PUT', body: payload }),
     getAlgorithmConfig: (projectId: string) =>
       apiClient.get<{ algorithm: AlgorithmConfig; solverConfig: SolverConfig }>(`/project/${projectId}/algorithm-config`),
-    saveAlgorithmConfig: (projectId: string, payload: { algorithm: AlgorithmConfig; solverConfig: SolverConfig }) =>
+    saveAlgorithmConfig: (projectId: string, payload: UpdateAlgorithmConfigRequest) =>
       apiClient.mutate<ProjectDetailResponse>(`/project/${projectId}/algorithm-config`, { method: 'PUT', body: payload }),
     saveBoundaries: (projectId: string, boundaries: import('~~/types/boundary').BoundaryItem[]) =>
       apiClient.mutate<ProjectDetailResponse>(`/project/${projectId}/boundary`, { method: 'PUT', body: { boundaries } }),

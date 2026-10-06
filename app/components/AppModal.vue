@@ -2,7 +2,7 @@
 interface Props {
   open: boolean
   title: string
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -16,7 +16,8 @@ const emit = defineEmits<{
 const sizeClassMap = {
   sm: 'max-w-[400px]',
   md: 'max-w-[560px]',
-  lg: 'max-w-[720px]'
+  lg: 'max-w-[720px]',
+  xl: 'max-w-[1000px]'
 }
 
 const handleOverlayClick = (event: MouseEvent) => {
@@ -64,7 +65,7 @@ onBeforeUnmount(() => {
               </svg>
             </button>
           </div>
-          <div class="max-h-[60vh] overflow-y-auto p-2">
+          <div class="overflow-y-auto p-2" :class="size === 'xl' ? 'max-h-[80vh]' : 'max-h-[60vh]'">
             <slot />
           </div>
           <div v-if="$slots.footer" class="flex items-center justify-end gap-3 px-5 py-2">

@@ -1,4 +1,5 @@
 import type { AppearancePreset, SizePreset } from '~~/types/component'
+import { getDeviceColor } from './device-colors'
 
 export interface ComponentUIConfig {
   icon: string
@@ -28,55 +29,55 @@ export const componentUIConfigs: Record<string, ComponentUIConfig> = {
     icon: 'wind',
     canvasType: 'energy',
     defaultSize: { width: 150, height: 150 },
-    appearance: createAppearance('#EFF8FF', '#165DFF')
+    appearance: createAppearance('#EFF8FF', getDeviceColor('WT'))
   },
   CP: {
     icon: 'factory',
     canvasType: 'energy',
     defaultSize: { width: 150, height: 150 },
-    appearance: createAppearance('#FFF1F0', '#F53F3F')
+    appearance: createAppearance('#FFF1F0', getDeviceColor('CP'))
   },
   CHP: {
     icon: 'factory',
     canvasType: 'energy',
     defaultSize: { width: 150, height: 150 },
-    appearance: createAppearance('#FFF7E8', '#FF7D00')
+    appearance: createAppearance('#FFF7E8', getDeviceColor('CHP'))
   },
   ES: {
     icon: 'battery',
     canvasType: 'energy',
     defaultSize: { width: 150, height: 150 },
-    appearance: createAppearance('#ECFDF3', '#12B76A')
+    appearance: createAppearance('#FFF1F2', getDeviceColor('ES'))
   },
   FS: {
     icon: 'battery',
     canvasType: 'energy',
     defaultSize: { width: 150, height: 150 },
-    appearance: createAppearance('#F3F0FF', '#7C3AED')
+    appearance: createAppearance('#F3F0FF', getDeviceColor('FS'))
   },
   PS: {
     icon: 'water',
     canvasType: 'energy',
     defaultSize: { width: 150, height: 150 },
-    appearance: createAppearance('#E0F2FE', '#0284C7')
+    appearance: createAppearance('#E0F2FE', getDeviceColor('PS'))
   },
   CS: {
     icon: 'battery',
     canvasType: 'energy',
     defaultSize: { width: 150, height: 150 },
-    appearance: createAppearance('#E0F2FE', '#0EA5E9')
+    appearance: createAppearance('#E0F2FE', getDeviceColor('CS'))
   },
   ELOAD: {
     icon: 'load-electric',
     canvasType: 'energy',
     defaultSize: { width: 150, height: 150 },
-    appearance: createAppearance('#FEF3F2', '#F04438')
+    appearance: createAppearance('#F0F9FF', getDeviceColor('ELOAD'))
   },
   HLOAD: {
     icon: 'load-hydrogen',
     canvasType: 'energy',
     defaultSize: { width: 150, height: 150 },
-    appearance: createAppearance('#F0FDF4', '#16A34A')
+    appearance: createAppearance('#F0FDF4', getDeviceColor('HLOAD'))
   },
 
   // ===== 总线 =====

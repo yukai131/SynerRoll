@@ -6,6 +6,8 @@ using JuMP
 using CSV
 using DataFrames
 using SHA
+using COPT
+using HiGHS
 
 begin
     # 解析服务（画布 JSON → component/connection/mapping JSON）

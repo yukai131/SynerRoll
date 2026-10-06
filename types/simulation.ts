@@ -30,10 +30,13 @@ export const DEFAULT_LAYER_CONFIG: LayerConfigSet = {
 // 算法与求解器配置（Project 级别）
 // ============================================================
 
+export type SolverName = 'HiGHS' | 'COPT'
+
 export interface AlgorithmConfig {
   electricityLoadPrediction: string
   windTurbinePrediction: string
   optimizationAlgorithm: string
+  solver: SolverName
   slackEnabled: boolean
   slackPenalty: number
 }
@@ -103,7 +106,7 @@ export interface BackendNodeRecord {
 import type { BoundaryItem } from './boundary'
 
 export interface BackendExportPayload {
-  algorithm: Record<string, string>
+  algorithm: Record<string, string | number | boolean | undefined>
   boundary: BoundaryItem[]
   component: BackendComponentRecord[]
   layer: Record<string, { id: string; name: string; length: string; step: string; forward: string | null }>

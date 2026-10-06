@@ -25,6 +25,7 @@ export const createEmptyProject = (name: string, description?: string): Project 
       electricityLoadPrediction: 'None',
       windTurbinePrediction: 'None',
       optimizationAlgorithm: 'MILP',
+      solver: 'COPT',
       slackEnabled: false,
       slackPenalty: 1000000
     },
@@ -39,6 +40,7 @@ export const createEmptyProject = (name: string, description?: string): Project 
 
 export const normalizeProject = (project: Project): Project => {
   const workspace = project.workspace?.canvases?.length ? project.workspace : createInitialWorkspace()
+  const algorithm = project.algorithm ?? {} as Partial<Project['algorithm']>
   const normalizedWorkspace = {
     ...workspace,
     canvases: workspace.canvases.map(canvas => normalizeCanvasBusNodes(canvas))
@@ -46,7 +48,16 @@ export const normalizeProject = (project: Project): Project => {
 
   return {
     ...project,
-    workspace: normalizedWorkspace
+    workspace: normalizedWorkspace,
+    algorithm: {
+      ...algorithm,
+      electricityLoadPrediction: algorithm.electricityLoadPrediction ?? 'None',
+      windTurbinePrediction: algorithm.windTurbinePrediction ?? 'None',
+      optimizationAlgorithm: algorithm.optimizationAlgorithm ?? 'MILP',
+      slackEnabled: algorithm.slackEnabled ?? false,
+      slackPenalty: algorithm.slackPenalty ?? 1000000,
+      solver: algorithm.solver === 'HiGHS' ? 'HiGHS' : 'COPT'
+    }
   }
 }
 

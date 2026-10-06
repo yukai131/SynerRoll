@@ -14,6 +14,7 @@ begin
     using JSON3
     using JuMP
     using COPT
+    using HiGHS
 
     include("utils/timestr_utils.jl")
     include("utils/layer_utils.jl")

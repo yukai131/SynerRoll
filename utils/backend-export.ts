@@ -82,6 +82,7 @@ export const buildBackendPayload = (project: Project): BackendExportPayload => {
       heatLoadPrediction: project.algorithm.heatLoadPrediction,
       windTurbinePrediction: project.algorithm.windTurbinePrediction,
       optimizationAlgorithm: project.algorithm.optimizationAlgorithm,
+      solver: project.algorithm.solver,
       slackEnabled: project.algorithm.slackEnabled,
       slackPenalty: project.algorithm.slackPenalty
     },

@@ -1,13 +1,27 @@
 <script setup lang="ts">
 import { nextTick, watch } from 'vue'
 import type { Project } from '~~/types/project'
-import type { BoundaryItem, BoundaryMeaning, BoundaryRawData, BoundaryTransformedData } from '~~/types/boundary'
+import type {
+  BoundaryItem,
+  BoundaryMeaning,
+  BoundaryMetadata,
+  BoundaryRawData,
+  BoundaryTimeMode,
+  BoundaryTransformedData
+} from '~~/types/boundary'
 // 2026-07-07: BOUNDARY_COMPONENT_MAPPINGS 已注释（见 types/boundary.ts 顶部说明），先从 import 里去掉
 // import { BOUNDARY_MEANING_LABELS, BOUNDARY_COMPONENT_MAPPINGS, INTERPOLATE_OPTIONS, DISTRIBUTION_OPTIONS, TIME_STEP_OPTIONS } from '~~/types/boundary'
 import { BOUNDARY_MEANING_LABELS, INTERPOLATE_OPTIONS, DISTRIBUTION_OPTIONS, TIME_STEP_OPTIONS } from '~~/types/boundary'
 import { componentDefinitionMap } from '~~/config/component-meta'
 import { useProjectApi } from '~~/composables/api/useProjectApi'
 import { useToastCenter } from '~~/state/ui'
+import {
+  DEFAULT_BOUNDARY_START_DATE,
+  deriveCalendarEndDate,
+  formatCalendarMinute,
+  isDateOnly
+} from '~~/utils/calendarTime'
+import { timeLabelToMinutes } from '~~/utils/timeLabel'
 import {
   getBoundaryRelatedComponentsForActiveCanvas,
   setBoundaryRelatedComponentsForActiveCanvas,
@@ -55,12 +69,7 @@ const rawData = ref<BoundaryRawData | null>(null)
 const transformedData = ref<BoundaryTransformedData | null>(null)
 
 // boundary 元信息（长度和尺度）
-const boundaryMeta = ref<{
-  boundaryLength: string
-  boundaryStep: string
-  dayCount: number
-  pointCount: number
-} | null>(null)
+const boundaryMeta = ref<BoundaryMetadata | null>(null)
 
 // 原始数据图表
 const rawChartRef = ref<HTMLDivElement | null>(null)
@@ -119,7 +128,14 @@ const form = reactive({
   relatedComponents: [] as string[],
   interpolateType: 'copy' as const,
   randomDistribution: 'normal' as const,
-  noiseLevel: 0
+  noiseLevel: 0,
+  timeMode: 'calendar' as BoundaryTimeMode,
+  calendarStartDate: DEFAULT_BOUNDARY_START_DATE
+})
+
+const calendarEndDate = computed(() => {
+  if (!isDateOnly(form.calendarStartDate)) return ''
+  return deriveCalendarEndDate(form.calendarStartDate, boundaryMeta.value?.dayCount ?? 0)
 })
 
 // 导入按钮是否可用
@@ -127,7 +143,18 @@ const canImport = computed(() => {
   return form.filePath.trim() !== '' &&
     form.columnName.trim() !== '' &&
     form.timeStep !== '' &&
-    form.meaning !== ''
+    form.meaning !== '' &&
+    isDateOnly(form.calendarStartDate)
+})
+
+watch(() => form.calendarStartDate, () => {
+  if (!boundaryMeta.value) return
+  boundaryMeta.value = {
+    ...boundaryMeta.value,
+    timeMode: 'calendar',
+    calendarStartDate: form.calendarStartDate,
+    calendarEndDate: calendarEndDate.value
+  }
 })
 
 const project = computed(() => projectState.value)
@@ -360,6 +387,7 @@ function saveCurrentFormToBoundary() {
   boundary.interpolateType = form.interpolateType
   boundary.randomDistribution = form.randomDistribution
   boundary.noiseLevel = form.noiseLevel
+  boundary.boundaryMeta = boundaryMeta.value ? { ...boundaryMeta.value } : undefined
 
   // 持久化原始数据和转换数据，避免页面重载后丢失
   if (rawData.value) {
@@ -462,8 +490,24 @@ async function loadBoundary(id: string) {
     relatedComponents: getBoundaryRelatedComponentsForActiveCanvas(boundary, project.value.workspace),
     interpolateType: boundary.interpolateType,
     randomDistribution: boundary.randomDistribution,
-    noiseLevel: boundary.noiseLevel
+    noiseLevel: boundary.noiseLevel,
+    timeMode: 'calendar',
+    calendarStartDate: isDateOnly(boundary.boundaryMeta?.calendarStartDate)
+      ? boundary.boundaryMeta.calendarStartDate
+      : DEFAULT_BOUNDARY_START_DATE
   })
+  boundaryMeta.value = boundary.boundaryMeta
+    ? {
+        ...boundary.boundaryMeta,
+        timeMode: 'calendar',
+        calendarStartDate: isDateOnly(boundary.boundaryMeta.calendarStartDate)
+          ? boundary.boundaryMeta.calendarStartDate
+          : DEFAULT_BOUNDARY_START_DATE,
+        calendarEndDate: isDateOnly(boundary.boundaryMeta.calendarEndDate)
+          ? boundary.boundaryMeta.calendarEndDate
+          : deriveCalendarEndDate(DEFAULT_BOUNDARY_START_DATE, boundary.boundaryMeta.dayCount)
+      }
+    : null
 
   // 恢复持久化的数据
   if (boundary.rawData) {
@@ -499,7 +543,13 @@ async function loadBoundary(id: string) {
         success: boolean
         data?: {
           allFound: boolean
-          boundaries: { layerId: string; found: boolean; values?: number[]; timestamps?: string[] }[]
+          boundaries: {
+            layerId: string
+            found: boolean
+            values?: number[]
+            timestamps?: string[]
+            config?: BoundaryMetadata
+          }[]
         }
       }>('/api/v1/boundary/load', {
         method: 'POST',
@@ -517,6 +567,22 @@ async function loadBoundary(id: string) {
       // BFF 把 allFound/boundaries 放在了 loadRes.data 下（apiSuccess 包装层）
       const payload = loadRes.data
       if (loadRes.success && payload) {
+        const storedConfig = payload.boundaries.find(item => item.config)?.config
+        if (storedConfig) {
+          boundaryMeta.value = {
+            ...storedConfig,
+            timeMode: 'calendar',
+            calendarStartDate: isDateOnly(storedConfig.calendarStartDate)
+              ? storedConfig.calendarStartDate
+              : DEFAULT_BOUNDARY_START_DATE,
+            calendarEndDate: isDateOnly(storedConfig.calendarEndDate)
+              ? storedConfig.calendarEndDate
+              : deriveCalendarEndDate(DEFAULT_BOUNDARY_START_DATE, storedConfig.dayCount)
+          }
+          form.timeMode = 'calendar'
+          form.calendarStartDate = boundaryMeta.value.calendarStartDate ?? DEFAULT_BOUNDARY_START_DATE
+          boundary.boundaryMeta = { ...boundaryMeta.value }
+        }
         const foundLayers = (payload.boundaries || []).filter((b: any) => b.found)
         if (foundLayers.length > 0) {
           // 用项目里 layerConfig 的 name 做更友好的标题
@@ -562,6 +628,8 @@ async function loadBoundary(id: string) {
           filePath: form.filePath,
           columnName: form.columnName,
           timeStep: form.timeStep,
+          timeMode: 'calendar',
+          calendarStartDate: form.calendarStartDate || DEFAULT_BOUNDARY_START_DATE,
           projectId: projectId.value
         }
       })
@@ -782,7 +850,8 @@ function saveBoundary() {
       ),
       interpolateType: form.interpolateType,
       randomDistribution: form.randomDistribution,
-      noiseLevel: form.noiseLevel
+      noiseLevel: form.noiseLevel,
+      boundaryMeta: boundaryMeta.value ? { ...boundaryMeta.value } : undefined
     })
     syncProjectFromBoundaries()
     scheduleProjectSyncPersist()
@@ -815,6 +884,9 @@ async function importData() {
         totalHours: number
         dayCount: number
         timeStep: string
+        timeMode: BoundaryTimeMode
+        calendarStartDate?: string
+        calendarEndDate?: string
       }
       message?: string
     }>('/api/v1/boundary/import', {
@@ -823,6 +895,8 @@ async function importData() {
         filePath: form.filePath,
         columnName: form.columnName,
         timeStep: form.timeStep,
+        timeMode: 'calendar',
+        calendarStartDate: form.calendarStartDate || DEFAULT_BOUNDARY_START_DATE,
         projectId: projectId.value
       }
     })
@@ -841,6 +915,9 @@ async function importData() {
       boundaryStep: response.data.timeStep,
       dayCount: response.data.dayCount,
       pointCount: response.data.pointCount,
+      timeMode: response.data.timeMode,
+      calendarStartDate: response.data.calendarStartDate,
+      calendarEndDate: response.data.calendarEndDate,
     }
 
     await nextTick()
@@ -938,6 +1015,10 @@ async function submitBoundary() {
           boundaryStep: boundaryMeta.value?.boundaryStep ?? '',
           dayCount: boundaryMeta.value?.dayCount ?? 0,
           pointCount: boundaryMeta.value?.pointCount ?? 0,
+          timeMode: 'calendar',
+          calendarStartDate: boundaryMeta.value?.calendarStartDate ?? DEFAULT_BOUNDARY_START_DATE,
+          calendarEndDate: boundaryMeta.value?.calendarEndDate
+            ?? deriveCalendarEndDate(DEFAULT_BOUNDARY_START_DATE, boundaryMeta.value?.dayCount ?? 0),
         }))
       }
     })
@@ -1018,7 +1099,9 @@ function updateRawChart() {
       },
       xAxis: {
         type: 'category' as const,
-        data: rawData.value!.timestamps,
+        data: rawData.value!.timestamps.map(timestamp =>
+          formatCalendarMinute(boundaryMeta.value?.calendarStartDate, timeLabelToMinutes(timestamp))
+        ),
         name: rawData.value!.xAxisLabel,
         nameLocation: 'middle' as const,
         nameGap: 30
@@ -1081,7 +1164,9 @@ function updateTransformedChart() {
         },
         xAxis: {
           type: 'category',
-          data: layer.timestamps,
+          data: layer.timestamps.map(timestamp =>
+            formatCalendarMinute(boundaryMeta.value?.calendarStartDate, timeLabelToMinutes(timestamp))
+          ),
           name: rawData.value?.xAxisLabel || '时间',
           nameLocation: 'middle',
           nameGap: 30
@@ -1340,7 +1425,7 @@ watch(() => form.noiseLevel, (newVal) => {
         <div class="panel-card px-8 py-4 flex flex-col flex-1 min-h-0 space-y-4 overflow-hidden">
           <!-- 第一行：导入配置 -->
           <div class="flex items-center gap-6">
-            <div class="flex items-center gap-2 w-1/2">
+            <div class="flex items-center gap-2 w-1/3">
               <label class="w-16 text-sm text-app shrink-0">导入文件</label>
               <PropertyText
                 v-model="form.filePath"
@@ -1383,7 +1468,26 @@ watch(() => form.noiseLevel, (newVal) => {
             </div>
           </div>
 
-          <!-- 第二行：关联组件 -->
+          <!-- 第二行：日期范围 -->
+          <div class="flex flex-wrap items-center gap-6">
+            <div class="flex items-center gap-2 w-1/4 min-w-[280px]">
+              <label class="w-16 text-sm text-app shrink-0">起始日期</label>
+              <AppDateInput
+                v-model="form.calendarStartDate"
+                class="flex-1"
+              />
+            </div>
+            <div class="flex items-center gap-2 w-1/4 min-w-[280px]">
+              <label class="w-16 text-sm text-app shrink-0">终止日期</label>
+              <AppDateInput
+                :model-value="calendarEndDate"
+                :disabled="true"
+                class="flex-1"
+              />
+            </div>
+          </div>
+
+          <!-- 第三行：关联组件 -->
           <div class="flex items-center gap-3">
             <div class="flex items-center gap-2 flex-1 ">
               <label class="w-16 text-sm text-app shrink-0">关联组件</label>

@@ -6,7 +6,8 @@ const JULIA_BACKEND_URL = 'http://localhost:8080/api/task/create'
 /**
  * 创建计算任务
  * 请求体:
- * - projectId, canvasId, layerId, mode, simStartTime, simEndTime?, name?, solveConfig?
+ * - projectId, canvasId, layerId, mode, simStartTime, simEndTime?
+ * - simStartDate?, simEndDate?（日历绑定任务必须成对提供）
  * BFF 自动从项目存储读取 projectJson 传给 Julia 后端
  */
 export default defineEventHandler(async (event) => {
