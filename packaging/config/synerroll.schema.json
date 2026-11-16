@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer"
+    },
+    "julia": {
+      "type": "object",
+      "properties": {
+        "startupTimeoutSec": {
+          "type": "number",
+          "minimum": 30
+        }
+      }
+    },
+    "bff": {
+      "type": "object",
+      "properties": {
+        "startupTimeoutSec": {
+          "type": "number",
+          "minimum": 10
+        }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "properties": {
+        "windowWidth": {
+          "type": "number",
+          "minimum": 1024
+        },
+        "windowHeight": {
+          "type": "number",
+          "minimum": 700
+        }
+      }
+    }
+  }
+}

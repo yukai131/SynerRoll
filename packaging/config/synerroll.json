@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "julia": {
+    "startupTimeoutSec": 900
+  },
+  "bff": {
+    "startupTimeoutSec": 90
+  },
+  "ui": {
+    "windowWidth": 1200,
+    "windowHeight": 800
+  }
+}
