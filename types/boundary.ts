@@ -9,14 +9,13 @@ export type BoundaryTimeMode = 'calendar'
 
 // 边界配置页左侧子栏目（模块）分区
 // 历史数据未写 category 时，按 meaning / 名称启发归类；仍无法判定则归入 weather
-export type BoundaryModuleKey = 'device-fitting' | 'weather' | 'load' | 'price' | 'agc'
+export type BoundaryModuleKey = 'device-fitting' | 'weather' | 'load' | 'price'
 
 export const BOUNDARY_MODULE_OPTIONS: { key: BoundaryModuleKey; label: string }[] = [
   { key: 'device-fitting', label: '设备参数拟合' },
   { key: 'weather', label: '气象配置' },
   { key: 'load', label: '负荷配置' },
   { key: 'price', label: '价格配置' },
-  { key: 'agc', label: 'AGC配置' }
 ]
 
 export const BOUNDARY_MODULE_LABELS: Record<BoundaryModuleKey, string> = {
@@ -24,7 +23,6 @@ export const BOUNDARY_MODULE_LABELS: Record<BoundaryModuleKey, string> = {
   weather: '气象配置',
   load: '负荷配置',
   price: '价格配置',
-  agc: 'AGC配置'
 }
 
 export function normalizeBoundaryModuleKey(category?: string | null): BoundaryModuleKey {
@@ -32,14 +30,19 @@ export function normalizeBoundaryModuleKey(category?: string | null): BoundaryMo
     category === 'device-fitting' ||
     category === 'weather' ||
     category === 'load' ||
-    category === 'price' ||
-    category === 'agc'
+    category === 'price'
   ) {
     return category
   }
   // 兼容上一轮临时 category 值
   if (category === 'boundary') return 'weather'
   return 'weather'
+}
+
+/** 已停用或未知类别保留在历史项目中，不作为当前配置候选。 */
+export function isSupportedBoundary(item: { category?: string | null }): boolean {
+  return !item.category || item.category === 'boundary'
+    || BOUNDARY_MODULE_OPTIONS.some(option => option.key === item.category)
 }
 
 /** 启发式归类：优先 category，其次 meaning / 名称关键词 */
@@ -65,7 +68,6 @@ export function resolveBoundaryModuleKey(item: {
     meaning === 'price' ||
     /价格|电价|氢价|燃.*价|购.*价|售.*价|price/i.test(name)
   ) return 'price'
-  if (/agc/i.test(name) || meaning === 'power') return 'agc'
   if (meaning === 'factor' || /拟合|参数/i.test(name)) return 'device-fitting'
   if (
     meaning === 'wind_speed' ||
@@ -126,14 +128,12 @@ export const BOUNDARY_MEANING_LABELS: Record<BoundaryMeaning, string> = {
 
 /**
  * 各子栏目允许的物理含义。
- * power 双归属：气象配置与 AGC 配置都允许「输出功率」。
  */
 export const BOUNDARY_MODULE_MEANINGS: Record<BoundaryModuleKey, BoundaryMeaning[]> = {
   'device-fitting': ['factor'],
   weather: ['wind_speed', 'irradiance', 'temperature', 'factor', 'power'],
   load: ['load'],
   price: ['fuel_price', 'buy_price', 'sell_price', 'h2_buy_price', 'h2_sell_price'],
-  agc: ['power']
 }
 
 /** 某栏目下可选物理含义；若 current 不在白名单（历史数据），会追加保留 */

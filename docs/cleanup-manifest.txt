@@ -8,8 +8,6 @@ _fix_tip_style.py
 监听.py
 统计行数.py
 开发阶段性能日志说明.md
-灵活性计算过程示例.md
-灵活性计算过程示例.pdf
 check-tpl.mjs
 inspect-project.py
 inspect-task.py

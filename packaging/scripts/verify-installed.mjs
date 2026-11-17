@@ -100,7 +100,7 @@ try {
   }
   await api(`/project/${id}/boundary`, { boundaries: metadata }, 'PUT')
   check('CSV import, resampling and project boundary SQLite persistence')
-  const taskRequest = { projectId: id, canvasId, layerId: '1', mode: 'offline', simMode: 'single_layer', targetLayerId: '1', simStartTime: '0:00', simEndTime: '24:00', simStartDate: '2026-01-01', simEndDate: '2026-01-01', name: '安装验收 HiGHS', flexibility: { enabled: true, layerId: '1', operationMode: 'economic_operation', networkMode: 'grid_connected', requirementSource: 'user_defined', upwardRequirementKw: 5, downwardRequirementKw: 5 } }
+  const taskRequest = { projectId: id, canvasId, layerId: '1', mode: 'offline', simMode: 'single_layer', targetLayerId: '1', simStartTime: '0:00', simEndTime: '24:00', simStartDate: '2026-01-01', simEndDate: '2026-01-01', name: '安装验收 HiGHS' }
   const created = await api('/task/create', taskRequest)
   report.projectId = id
   report.taskId = created.id
@@ -110,10 +110,9 @@ try {
   await waitFor(`/task/${created.id}/state`)
   await new Promise(resolve => setTimeout(resolve, 1000))
   liveSocket.close()
-  assert(liveEvents.some(event => event.type === 'flexibility'))
   assert(liveEvents.some(event => event.type === 'completed'))
   report.liveEventTypes = [...new Set(liveEvents.map(event => event.type))]
-  check('Independent simulation worker forwards live flexibility and completion events')
+  check('Independent simulation worker forwards live simulation and completion events')
   const data = await api(`/task/${created.id}/data?maxMinutes=1440&skipBoundary=true`)
   assert(data.rows.length > 0 && data.rows.some(row => row.value > 0))
   assert(data.probe.from_bff_sqlite)
@@ -135,18 +134,13 @@ try {
     socket.onerror = () => { clearTimeout(timer); socket.close(); reject(Error('Task WebSocket connection failed')) }
   })
   check('Task WebSocket connects to the dynamically selected bundled Julia port')
-  const flexibility = await api(`/task/${created.id}/flexibility?layerId=1`)
-  assert(flexibility.config.enabled && flexibility.periods.length > 0 && flexibility.summaries.length > 0)
-  report.flexibilityPeriods = flexibility.periods.length
-  check('Device and system flexibility evaluation, margin summaries and SQLite reads')
-  const multi = await api('/task/create', { ...taskRequest, simMode: 'multi_layer', flexibility: { ...taskRequest.flexibility, layerId: '2' } })
+  const multi = await api('/task/create', { ...taskRequest, simMode: 'multi_layer' })
   report.multiTaskId = multi.id
   await waitFor(`/task/${multi.id}/state`, 600)
-  const multiFlexibility = await api(`/task/${multi.id}/flexibility?layerId=2`)
-  assert.equal(multiFlexibility.periods.length, 48)
-  assert(multiFlexibility.summaries.length > 0)
-  report.multiFlexibilityPeriods = multiFlexibility.periods.length
-  check('Two-layer rolling simulation produces flexibility periods and summaries on the second layer')
+  const multiData = await api(`/task/${multi.id}/data?layerId=2&skipBoundary=true`)
+  assert(multiData.rows.length > 0 && multiData.rows.some(row => Number(row.value) > 0))
+  report.multiResultRows = multiData.rows.length
+  check('Two-layer rolling simulation completes and persists second-layer output')
   const schema = await api('/capacity-planning/form-schema', { projectId: id, canvasId })
   const variables = schema.variables.map(variable => ({ ...variable, lowerBound: 50, upperBound: 150, step: 10 }))
   assert(variables.length > 0)

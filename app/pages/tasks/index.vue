@@ -1,18 +1,12 @@
 <script setup lang="ts">
+import brand from '~~/config/brand.json'
 import type {
   ComputeTask,
   ComputeTaskListResponse,
-  DeviceFlexibilityResult,
-  EconomyEvaluationResult,
-  FlexibilityRequirementSource,
-  FlexibilitySummaryResult,
-  FlexibilityTaskConfig,
-  FlexibilityValueSpec,
-  TaskFlexibilityResponse
+  EconomyEvaluationResult
 } from '~~/types/api'
 import type { Project } from '~~/types/project'
-import type { BoundaryItem } from '~~/types/boundary'
-import type { FlexibilityDisplayWindow } from '~~/types/flexibility-display'
+import { isSupportedBoundary, type BoundaryItem } from '~~/types/boundary'
 import type { ChartDisplayWindow } from '~~/utils/display-window'
 import {
   createDisplayWindow,
@@ -35,12 +29,7 @@ import {
   resolveResultPreference,
 } from '~~/utils/result-display-preferences'
 import {
-  FLEXIBILITY_REQUIREMENT_LABELS,
-  FLEXIBILITY_REQUIREMENT_OPTIONS
-} from '~~/config/flexibility'
-import {
-  timeLabelToMinutes,
-  minutesToTimeLabel
+  timeLabelToMinutes
 } from '~~/utils/timeLabel'
 import {
   DEFAULT_BOUNDARY_START_DATE,
@@ -50,12 +39,11 @@ import {
 } from '~~/utils/calendarTime'
 
 import DeviceOutputAnalysis from '~/components/DeviceOutputAnalysis.vue'
-import FlexibilityDemandComparisonModal from '~/components/FlexibilityDemandComparisonModal.vue'
 import PieChart from '~/components/PieChart.vue'
 import ResultChartsSkeleton from '~/components/ResultChartsSkeleton.vue'
 import { getDeviceColor, getLayerColor } from '~~/config/device-colors'
 
-definePageMeta({ title: '结果分析 - 新能源发电系统灵活性量化评估软件' })
+definePageMeta({ title: `结果分析 - ${brand.displayName}` })
 
 function durationToMinutes(duration: string): number | null {
   const match = /^(\d+)(h|m|s)$/.exec(duration.trim())
@@ -83,8 +71,6 @@ const sections: AnalysisSection[] = [
   { key: 'energy-flow', label: '能流平衡分析', icon: '' },
   { key: 'device-output', label: '设备出力分析', icon: '' },
   { key: 'economy', label: '经济性分析', icon: '' },
-  { key: 'flexibility', label: '系统灵活性量化评估', icon: '' },
-  { key: 'device-flexibility', label: '设备灵活性量化评估', icon: '' },
 ]
 
 const activeSection = ref<string>('overview')
@@ -92,7 +78,7 @@ const activeSection = ref<string>('overview')
 // ───── 当前选中的任务 ─────
 const selectedTaskId = ref<string | null>(null)
 const selectedTask = ref<ComputeTask | null>(null)
-/** 创建后立刻出壳，后台补齐项目/灵活性 */
+/** 创建后立刻出壳，后台补齐项目 */
 const resultShellLoading = ref(false)
 const currentProject = ref<Project | null>(null)
 
@@ -257,9 +243,6 @@ const liveDataVersion = ref(0)
 const liveDataVersions = ref<Record<string, number>>({})
 const liveDataMaxMinutes = ref(0)
 const liveStatus = ref<string>('')
-const flexibilityData = ref<TaskFlexibilityResponse | null>(null)
-const flexibilityLoading = ref(false)
-const flexibilityError = ref('')
 
 // ───── 经济性评价 ─────
 const economyData = ref<EconomyEvaluationResult | null>(null)
@@ -270,56 +253,16 @@ const economySelectedLayer = ref<string>('')
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 let pollingGeneration = 0
 
-const flexibilityConfig = computed<FlexibilityTaskConfig | null>(() => {
-  const config = flexibilityData.value?.config
-  return config?.enabled ? config as FlexibilityTaskConfig : null
-})
-
-const FLEXIBILITY_DIRECTIONS = ['up', 'down'] as const
-const FLEXIBILITY_DIRECTION_LABELS: Record<typeof FLEXIBILITY_DIRECTIONS[number], string> = {
-  up: '上调',
-  down: '下调'
-}
-const FLEXIBILITY_DIRECTION_ORDER: Record<typeof FLEXIBILITY_DIRECTIONS[number], number> = {
-  up: 0,
-  down: 1
-}
-
-const flexibilityPeriods = computed(() =>
-  (flexibilityData.value?.periods ?? [])
-    .slice()
-    .sort((a, b) => {
-      const timeDiff = timeLabelToMinutes(a.timestamp) - timeLabelToMinutes(b.timestamp)
-      return timeDiff || FLEXIBILITY_DIRECTION_ORDER[a.direction] - FLEXIBILITY_DIRECTION_ORDER[b.direction]
-    })
-)
-
-const flexibilityDisplayWindow = ref<FlexibilityDisplayWindow>({
-  dateStart: 0,
-  dateEnd: 24 * 60,
-  start: 0,
-  end: 24 * 60
-})
-/** 系统灵活性三图共用同一视窗（需求来源 + 上调 + 下调） */
-const flexibilitySourceDisplayWindow = computed({
-  get: () => flexibilityDisplayWindow.value,
-  set: (value: FlexibilityDisplayWindow) => { flexibilityDisplayWindow.value = value }
-})
-const showFlexibilityDemandComparison = ref(false)
-
-/** 运行总览 / 能流 / 设备灵活性：同标签页内多图共享视窗 */
+/** 运行总览 / 能流：同标签页内多图共享视窗 */
 const overviewDisplayWindow = ref<ChartDisplayWindow>(createDisplayWindow(0, 24 * 60))
 const energyFlowDisplayWindow = ref<ChartDisplayWindow>(createDisplayWindow(0, 24 * 60))
-const deviceFlexDisplayWindow = ref<ChartDisplayWindow>(createDisplayWindow(0, 24 * 60))
 
 function resetSharedDisplayWindows(): void {
   const start = timeLabelToMinutes(taskSimRange.value.start)
   const simEnd = Math.max(start + 5, taskSimRange.value.endMinutes)
   // 各标签页独立副本：只在同标签页内联动
-  // 灵活性 / 能流 / 设备灵活性：按仿真范围
-  flexibilityDisplayWindow.value = createDisplayWindow(start, simEnd)
+  // 能流：按仿真范围
   energyFlowDisplayWindow.value = createDisplayWindow(start, simEnd)
-  deviceFlexDisplayWindow.value = createDisplayWindow(start, simEnd)
   // 运行总览：跟数据末端滚动（与原单图一致）
   overviewDisplayWindow.value = createDisplayWindow(
     start,
@@ -327,7 +270,6 @@ function resetSharedDisplayWindows(): void {
       ? Math.max(start + 5, liveDataMaxMinutes.value)
       : Math.min(simEnd, start + 24 * 60)
   )
-  showFlexibilityDemandComparison.value = false
 }
 
 watch(
@@ -348,20 +290,10 @@ watch(liveDataMaxMinutes, (maxMinutes, previous) => {
   overviewDisplayWindow.value = followDataEnd(overviewDisplayWindow.value, dataEnd)
 })
 
-watch(activeSection, () => { showFlexibilityDemandComparison.value = false })
 
 function sameDisplayWindow(a: ChartDisplayWindow, b: ChartDisplayWindow): boolean {
   return a.dateStart === b.dateStart && a.dateEnd === b.dateEnd
     && a.start === b.start && a.end === b.end
-}
-
-const updateFlexibilityDisplayWindow = (window: FlexibilityDisplayWindow): void => {
-  if (sameDisplayWindow(flexibilityDisplayWindow.value, window)) return
-  flexibilityDisplayWindow.value = window
-}
-
-const updateFlexibilitySourceDisplayWindow = (window: FlexibilityDisplayWindow): void => {
-  updateFlexibilityDisplayWindow(window)
 }
 
 const updateOverviewDisplayWindow = (window: ChartDisplayWindow): void => {
@@ -372,194 +304,6 @@ const updateOverviewDisplayWindow = (window: ChartDisplayWindow): void => {
 const updateEnergyFlowDisplayWindow = (window: ChartDisplayWindow): void => {
   if (sameDisplayWindow(energyFlowDisplayWindow.value, window)) return
   energyFlowDisplayWindow.value = window
-}
-
-const updateDeviceFlexDisplayWindow = (window: ChartDisplayWindow): void => {
-  if (sameDisplayWindow(deviceFlexDisplayWindow.value, window)) return
-  deviceFlexDisplayWindow.value = window
-}
-
-interface DeviceFlexibilityGroup {
-  key: string
-  deviceId: string
-  deviceType: string
-  label: string
-  boundary: boolean
-  rows: DeviceFlexibilityResult[]
-}
-
-const DEVICE_TYPE_LABELS: Record<string, string> = {
-  WT: '风机',
-  PV: '光伏',
-  CP: '燃煤机组',
-  GP: '气电机组',
-  CHP: '热电联产',
-  ET: '电解槽',
-  ELOAD: '电负荷',
-  HLOAD: '氢负荷',
-  QLOAD: '热负荷',
-  ES: '电化学储能',
-  HS: '储氢设备',
-  FS: '飞轮储能',
-  CS: '压缩空气储能',
-  PS: '抽水蓄能',
-  HYDRO: '常规水电',
-  GRID: '电网',
-  HGRID: '氢网'
-}
-
-const deviceFlexibilityGroups = computed<DeviceFlexibilityGroup[]>(() => {
-  const groups = new Map<string, DeviceFlexibilityGroup>()
-
-  const addRow = (row: DeviceFlexibilityResult, boundary = false) => {
-    const key = `${row.device_type}:${row.device_id}`
-    let group = groups.get(key)
-    if (!group) {
-      const nodeLabel = codeToLabel.value[row.device_id]
-      group = {
-        key,
-        deviceId: row.device_id,
-        deviceType: row.device_type,
-        label: nodeLabel || DEVICE_TYPE_LABELS[row.device_type] || `${row.device_type} ${row.device_id}`,
-        boundary,
-        rows: []
-      }
-      groups.set(key, group)
-    }
-    group.rows.push(row)
-  }
-
-  for (const period of flexibilityPeriods.value) {
-    for (const row of period.device_results ?? []) addRow(row)
-    if (period.boundary_result) addRow(period.boundary_result, true)
-  }
-
-  const canvas = currentProject.value?.workspace.canvases.find(
-    item => item.id === selectedTask.value?.canvas_id
-  )
-  const order = new Map<string, number>()
-  for (const [index, node] of (canvas?.nodes ?? []).entries()) {
-    const code = node.id.replace('node-', '').slice(0, 4)
-    order.set(`${node.data.componentKey}:${code}`, index)
-  }
-
-  return [...groups.values()]
-    .map(group => ({
-      ...group,
-      rows: group.rows.slice().sort((a, b) => {
-        const timeDiff = timeLabelToMinutes(a.timestamp) - timeLabelToMinutes(b.timestamp)
-        return timeDiff || a.direction.localeCompare(b.direction)
-      })
-    }))
-    .sort((a, b) => (order.get(a.key) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.key) ?? Number.MAX_SAFE_INTEGER)
-      || a.key.localeCompare(b.key))
-})
-
-const flexibilityPoiLimits = computed(() => {
-  const upward = flexibilityPeriods.value.find(row => row.direction === 'up')
-  const downward = flexibilityPeriods.value.find(row => row.direction === 'down')
-  const maximum = upward?.poi_power_limit == null ? Number.NaN : Number(upward.poi_power_limit)
-  const minimum = downward?.poi_power_limit == null ? Number.NaN : Number(downward.poi_power_limit)
-  return {
-    maximum: Number.isFinite(maximum) ? maximum : null,
-    minimum: Number.isFinite(minimum) ? minimum : null
-  }
-})
-
-const directionSummary = (direction: 'up' | 'down'): FlexibilitySummaryResult | undefined =>
-  flexibilityData.value?.summaries.find(row => row.direction === direction)
-
-const formatFlexValue = (value: unknown, digits = 2): string => {
-  const numeric = Number(value)
-  return Number.isFinite(numeric) ? numeric.toFixed(digits) : '--'
-}
-
-const formatFlexPercent = (value: unknown): string => {
-  const numeric = Number(value)
-  return Number.isFinite(numeric) ? `${(numeric * 100).toFixed(1)}%` : '--'
-}
-
-/** 灵活性 period 历史累积：首次全量，之后增量 merge（与 liveData 策略一致） */
-let flexHistoryLoaded = false
-let flexMaxMinutes = 0
-
-function flexPeriodKey(row: Record<string, unknown>): string {
-  return [
-    row.layer_id ?? row.layerId ?? '',
-    row.timestamp ?? row.ts ?? '',
-    row.direction ?? '',
-    row.requirement_source ?? row.requirementSource ?? '',
-    row.case_id ?? row.caseId ?? '',
-    row.poi_id ?? row.poiId ?? '',
-    row.application_type ?? '',
-    row.operation_mode ?? '',
-    row.boundary_condition ?? '',
-  ].join('|')
-}
-
-function mergeFlexibilityPeriods(
-  existing: Array<Record<string, unknown>> | undefined,
-  incoming: Array<Record<string, unknown>> | undefined
-): Array<Record<string, unknown>> {
-  const map = new Map<string, Record<string, unknown>>()
-  for (const row of existing ?? []) {
-    map.set(flexPeriodKey(row), row)
-  }
-  for (const row of incoming ?? []) {
-    map.set(flexPeriodKey(row), row)
-    const tsMin = Number(row.timestamp_minutes)
-    const tsLabel = String(row.timestamp ?? '')
-    const m = Number.isFinite(tsMin) && tsMin > 0 ? tsMin : timeLabelToMinutes(tsLabel)
-    if (Number.isFinite(m) && m > flexMaxMinutes) flexMaxMinutes = m
-  }
-  return [...map.values()]
-}
-
-const reloadFlexibility = async (taskId: string, options: { silent?: boolean } = {}) => {
-  if (!options.silent) {
-    flexibilityLoading.value = true
-    flexibilityError.value = ''
-  }
-  const t0 = performance.now()
-  try {
-    // 首次拉全量 periods；之后按 flexMaxMinutes 增量，前端 merge 保留历史
-    const minMinutes = flexHistoryLoaded && flexMaxMinutes > 0
-      ? Math.max(0, flexMaxMinutes - 24 * 60)
-      : undefined
-    const data = await taskApi.getFlexibility(taskId, undefined, minMinutes)
-    if (selectedTaskId.value !== taskId) return
-    const mergedPeriods = mergeFlexibilityPeriods(
-      flexibilityData.value?.periods as Array<Record<string, unknown>> | undefined,
-      (data as { periods?: Array<Record<string, unknown>> }).periods
-    )
-    flexibilityData.value = {
-      ...(data as Record<string, unknown>),
-      periods: mergedPeriods,
-      summaries: (data as { summaries?: unknown[] }).summaries
-        ?? flexibilityData.value?.summaries
-        ?? [],
-    } as typeof flexibilityData.value
-    flexHistoryLoaded = true
-    flexibilityError.value = ''
-    const fp = (data as { probe?: Record<string, number | string> })?.probe
-    if (fp) probeAcc.lastFlexProbe = fp
-  }
-  catch (error) {
-    if (selectedTaskId.value !== taskId) return
-    if (!options.silent || !flexibilityData.value) {
-      flexibilityData.value = null
-      flexibilityError.value = error instanceof Error ? error.message : String(error)
-    }
-    else {
-      console.warn('[Poll] reloadFlexibility error:', error)
-    }
-  }
-  finally {
-    probeAcc.flexMs += performance.now() - t0
-    if (!options.silent && selectedTaskId.value === taskId) {
-      flexibilityLoading.value = false
-    }
-  }
 }
 
 const COST_TYPE_COLORS: Record<string, string> = {
@@ -702,7 +446,6 @@ const probeAcc = {
   cycles: 0,
   getDataMs: 0,
   mergeMs: 0,
-  flexMs: 0,
   econMs: 0,
   cycleMs: 0,
   rows: 0,
@@ -711,7 +454,6 @@ const probeAcc = {
   stalePolls: 0,
   stateMs: 0,
   lastProbe: null as null | Record<string, number | string>,
-  lastFlexProbe: null as null | Record<string, number | string>,
   lastLogAt: 0,
 }
 const probeLog = (force = false) => {
@@ -719,12 +461,10 @@ const probeLog = (force = false) => {
   if (!force && now - probeAcc.lastLogAt < 2000) return
   const n = Math.max(1, probeAcc.cycles)
   const p = probeAcc.lastProbe ?? {}
-  const fp = probeAcc.lastFlexProbe ?? {}
   console.info(
     `[Probe] cycles=${probeAcc.cycles}` +
     ` | getData_avg=${(probeAcc.getDataMs / n).toFixed(0)}ms` +
     ` | merge_avg=${(probeAcc.mergeMs / n).toFixed(0)}ms` +
-    ` | flex_avg=${(probeAcc.flexMs / n).toFixed(0)}ms` +
     ` | econ_avg=${(probeAcc.econMs / n).toFixed(0)}ms` +
     ` | cycle_avg=${(probeAcc.cycleMs / n).toFixed(0)}ms` +
     ` | rows_last=${probeAcc.rows}` +
@@ -736,8 +476,6 @@ const probeLog = (force = false) => {
     ` | bff=${p.bff_total_ms ?? '-'}ms` +
     ` | series=${p.series_count ?? '-'}` +
     ` | raw_pts=${p.raw_point_count ?? '-'}` +
-    ` | flex_parse=${fp.period_parse_ms ?? '-'}ms` +
-    ` | flex_n=${fp.period_count ?? '-'}` +
     ` | minMin_sent=${probeAcc.sentMinMinutes}` +
     ` | minMin_srv=${p.min_minutes ?? '-'}` +
     ` | taskHead=${probeAcc.taskHead}` +
@@ -749,7 +487,6 @@ const probeLog = (force = false) => {
   probeAcc.cycles = 0
   probeAcc.getDataMs = 0
   probeAcc.mergeMs = 0
-  probeAcc.flexMs = 0
   probeAcc.econMs = 0
   probeAcc.cycleMs = 0
   probeAcc.stateMs = 0
@@ -968,11 +705,8 @@ const startPolling = (taskId: string) => {
   liveDataUnits.value = {}
   liveDataVersions.value = {}
   liveDataVersion.value++
-  flexHistoryLoaded = false
-  flexMaxMinutes = 0
   const generation = pollingGeneration
   let pending = false
-  let lastFlexAt = 0
   let lastStateAt = 0
   let lastEconAt = 0
   const reloadResults = async () => {
@@ -997,12 +731,6 @@ const startPolling = (taskId: string) => {
         })
       : Promise.resolve(selectedTask.value)
     const liveP = reloadLiveData(taskId)
-    const now = performance.now()
-    const flexInterval = ['flexibility', 'device-flexibility'].includes(activeSection.value) ? 2000 : 5000
-    if (now - lastFlexAt >= flexInterval) {
-      lastFlexAt = now
-      void reloadFlexibility(taskId, { silent: true })
-    }
     // 经济性评价支持运行中动态刷新；节流约 2s，避免每次 200ms 轮询都扫库
     const nowEcon = performance.now()
     const econInterval = 2000
@@ -1071,8 +799,6 @@ const subscribeTask = (taskId: string) => {
   liveDataVersions.value = {}
   liveDataVersion.value++
   liveStatus.value = ''
-  flexibilityData.value = null
-  flexibilityError.value = ''
 
   wsHandle = connect(taskId, (evt) => {
     if (evt.type === 'status') {
@@ -1080,9 +806,6 @@ const subscribeTask = (taskId: string) => {
       if (selectedTask.value?.id === taskId) {
         selectedTask.value = { ...selectedTask.value, status: evt.status as ComputeTask['status'] }
       }
-    }
-    else if (evt.type === 'flexibility' || evt.type === 'flexibility_summary') {
-      void reloadFlexibility(taskId, { silent: true })
     }
     else if (evt.type === 'completed' || evt.type === 'failed' || evt.type === 'cancelled') {
       if (selectedTask.value?.id === taskId) {
@@ -1093,7 +816,6 @@ const subscribeTask = (taskId: string) => {
         }
       }
       void reloadLiveData(taskId)
-      void reloadFlexibility(taskId, { silent: true })
       stopPolling()
     }
   })
@@ -1158,16 +880,12 @@ const selectTask = async (taskId: string, options: { instantShell?: boolean } = 
   void loadConnectionData(taskId)
   subscribeTask(taskId)
   startPolling(taskId)
-  // 灵活性结果较重，后台拉；完成后再撤掉创建后的骨架遮罩
-  void reloadFlexibility(taskId, { silent: true }).finally(() => {
-    resultShellLoading.value = false
+  void detailP.finally(() => {
+    if (selectedTaskId.value === taskId) resultShellLoading.value = false
   })
 }
 
 watch(activeSection, (section) => {
-  if ((section === 'flexibility' || section === 'device-flexibility') && selectedTaskId.value) {
-    void reloadFlexibility(selectedTaskId.value)
-  }
   if (section === 'economy' && selectedTaskId.value) {
     void reloadEconomy(selectedTaskId.value)
   }
@@ -1262,17 +980,6 @@ const doAction = async (action: 'cancel' | 'cleanup', taskId: string) => {
 
 // ───── 新建任务 ─────
 
-type FlexibilityValueMode = 'constant' | 'manual' | 'file' | 'boundary'
-
-interface CreationBoundarySeriesOption {
-  value: string
-  boundaryId: string
-  label: string
-  timestamps: string[]
-  values: number[]
-  source: 'database' | 'project'
-}
-
 // 仿真模式类型
 type SimulationMode = 'multi_layer' | 'single_layer'
 
@@ -1284,25 +991,11 @@ const newTask = reactive({
   simMode: 'multi_layer' as SimulationMode,
   targetLayerId: '1',
   name: '',
-  poiId: '',
-  requirementSource: 'net_load_change' as FlexibilityRequirementSource,
-  flexibilityValueMode: 'constant' as FlexibilityValueMode,
-  targetPoiPowerKw: 0,
-  targetPoiPowerBoundaryId: '',
-  upwardRequirementKw: 0,
-  downwardRequirementKw: 0,
-  targetPoiPowerSeries: { default: 0 } as Record<string, number>,
-  upwardRequirementSeries: { default: 0 } as Record<string, number>,
-  downwardRequirementSeries: { default: 0 } as Record<string, number>
 })
 
 const creationProject = ref<Project | null>(null)
 const creationProjectLoading = ref(false)
 const creationProjectError = ref('')
-const boundarySeriesOptions = ref<CreationBoundarySeriesOption[]>([])
-const boundarySeriesLoading = ref(false)
-const boundarySeriesWarning = ref('')
-const seriesValidationErrors = reactive({ target: '', upward: '', downward: '' })
 
 const creationCanvasOptions = computed(() => creationProject.value?.workspace.canvases ?? [])
 const creationLayerOptions = computed(() => creationProject.value?.layerConfig.layers ?? [])
@@ -1348,7 +1041,7 @@ const creationBoundaryIds = computed(() => new Set(
 ))
 
 const creationBoundaries = computed<BoundaryItem[]>(() => {
-  const boundaries = creationProject.value?.boundaries ?? []
+  const boundaries = (creationProject.value?.boundaries ?? []).filter(isSupportedBoundary)
   const ids = creationBoundaryIds.value
   if (ids.size > 0) return boundaries.filter(boundary => ids.has(boundary.id))
 
@@ -1508,92 +1201,6 @@ const layerSelectOptions = computed(() =>
   creationLayerOptions.value.map(l => ({ label: `${l.name}（${l.step}）`, value: l.id }))
 )
 
-const finiteGridNumber = (value: unknown, fallback: number): number => {
-  const numeric = Number(value)
-  return Number.isFinite(numeric) ? numeric : fallback
-}
-
-const creationGridOptions = computed(() =>
-  (creationCanvas.value?.nodes ?? [])
-    .filter(node => node.data?.componentKey === 'GRID')
-    .map(node => {
-      const params = node.data?.business?.commonTechParams ?? {}
-      const capacityKw = Math.max(0, finiteGridNumber(params.capacity, 0))
-      const sellRatio = Math.max(0, finiteGridNumber(params.sell_ratio, 1))
-      const buyRatio = Math.max(0, finiteGridNumber(params.buy_ratio, 1))
-      const code = node.id.replace(/^node-/, '').slice(0, 4)
-      return {
-        value: code,
-        label: `${node.data?.label ?? '电网接口'} (${code})`,
-        capacityKw,
-        sellRatio,
-        buyRatio,
-        maximumPoiPowerKw: capacityKw * sellRatio,
-        minimumPoiPowerKw: -capacityKw * buyRatio
-      }
-    })
-)
-
-const selectedGridOption = computed(() =>
-  creationGridOptions.value.find(option => option.value === newTask.poiId) ?? creationGridOptions.value[0] ?? null
-)
-
-const isIslandedFlexibility = computed(() => creationGridOptions.value.length === 0)
-
-// 单层使用实际求解的目标层，多层使用最底层，评价输入始终来自已求解结果。
-const flexibilityEvaluationLayer = computed(() =>
-  newTask.simMode === 'single_layer'
-    ? creationLayerOptions.value.find(layer => layer.id === newTask.targetLayerId)
-    : creationLayerOptions.value[creationLayerOptions.value.length - 1]
-)
-const flexibilityEvaluationLayerId = computed(() =>
-  flexibilityEvaluationLayer.value?.id ?? newTask.layerId
-)
-
-// 与 simulation_runner._flexibility_evaluation_timestamps 保持一致：周前层按 length，
-// 其他层按 forward 形成评价窗口，并受任务结束时间截断。
-const expectedFlexibilityTimestamps = computed<string[]>(() => {
-  const layer = flexibilityEvaluationLayer.value
-  if (!layer) return []
-  const startMinutes = 0 // 开始时间固定为 0:00
-  const stepMinutes = durationToMinutes(layer.step)
-  const durationMinutes = durationToMinutes(String(layer.id) === '1' ? layer.length : layer.forward)
-  if (!stepMinutes || !durationMinutes || durationMinutes % stepMinutes !== 0) return []
-
-  const endMinutes = parsedEndHour.value * 60 // 结束时间由 parsedEndHour 控制
-  const timestamps: string[] = []
-  for (let offset = 0; offset < durationMinutes; offset += stepMinutes) {
-    const timestampMinutes = startMinutes + offset
-    if (timestampMinutes + stepMinutes > endMinutes) break
-    timestamps.push(minutesToTimeLabel(timestampMinutes))
-  }
-  return timestamps
-})
-
-const expectedRequirementTimestamps = computed(() => {
-  if (newTask.requirementSource !== 'agc_or_schedule') return expectedFlexibilityTimestamps.value
-  const stepMinutes = durationToMinutes(flexibilityEvaluationLayer.value?.step ?? '')
-  if (!stepMinutes) return []
-  return expectedFlexibilityTimestamps.value.map(timestamp =>
-    minutesToTimeLabel(timeLabelToMinutes(timestamp) + stepMinutes)
-  )
-})
-
-const availableRequirementOptions = computed(() =>
-  isIslandedFlexibility.value
-    ? FLEXIBILITY_REQUIREMENT_OPTIONS.filter(option => option.value !== 'agc_or_schedule')
-    : FLEXIBILITY_REQUIREMENT_OPTIONS
-)
-
-const formatBoundaryPower = (value: number): string =>
-  `${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 2 }).format(value)} kW`
-
-const openGridConfiguration = () => {
-  if (!newTask.projectId) return
-  showCreateDialog.value = false
-  void navigateTo(`/editor/${newTask.projectId}`)
-}
-
 const syncCreationSelections = () => {
   if (creationCanvasOptions.value.length && !creationCanvasOptions.value.some(canvas => canvas.id === newTask.canvasId)) {
     newTask.canvasId = creationCanvasOptions.value[0]!.id
@@ -1601,9 +1208,7 @@ const syncCreationSelections = () => {
   if (creationLayerOptions.value.length && !creationLayerOptions.value.some(layer => layer.id === newTask.layerId)) {
     newTask.layerId = creationLayerOptions.value[0]!.id
   }
-  if (!creationGridOptions.value.some(option => option.value === newTask.poiId)) {
-    newTask.poiId = creationGridOptions.value[0]?.value ?? ''
-  }
+
 }
 
 const loadCreationProject = async (projectId: string) => {
@@ -1624,125 +1229,8 @@ const loadCreationProject = async (projectId: string) => {
   }
 }
 
-const boundarySeriesCandidates = computed(() =>
-  (creationProject.value?.boundaries ?? []).filter(boundary =>
-    boundary.meaning === 'power' &&
-    (boundary.category === 'agc' || /计划|AGC|目标|调度/i.test(boundary.name))
-  )
-)
-
-const cachedBoundarySeriesOptions = (): CreationBoundarySeriesOption[] => {
-  const layerId = flexibilityEvaluationLayerId.value
-  const options: CreationBoundarySeriesOption[] = []
-  for (const boundary of boundarySeriesCandidates.value) {
-    const layer = boundary.transformedData?.layers.find(item => String(item.layerId) === String(layerId))
-    if (!layer?.timestamps.length || layer.timestamps.length !== layer.values.length) continue
-    options.push({
-      value: `${boundary.id}:${layerId}`,
-      boundaryId: boundary.id,
-      label: `${boundary.name} · ${layer.layerName}（项目缓存）`,
-      timestamps: layer.timestamps.map(String),
-      values: layer.values.map(Number),
-      source: 'project'
-    })
-  }
-  return options
-}
-
-const refreshBoundarySeriesOptions = async () => {
-  const projectId = newTask.projectId.trim()
-  const layerId = flexibilityEvaluationLayerId.value
-  const candidates = boundarySeriesCandidates.value
-  boundarySeriesOptions.value = cachedBoundarySeriesOptions()
-  boundarySeriesWarning.value = ''
-  if (!projectId || !layerId || !candidates.length) return
-
-  boundarySeriesLoading.value = true
-  try {
-    const response = await $fetch<{
-      success: boolean
-      data?: {
-        boundaries: Array<{
-          boundaryId?: string
-          layerId: string
-          found: boolean
-          values?: number[]
-          timestamps?: string[]
-        }>
-      }
-    }>('/api/v1/boundary/load', {
-      method: 'POST',
-      body: {
-        projectId,
-        boundaries: candidates.map(boundary => ({
-          layerId,
-          meaning: boundary.meaning,
-          boundaryId: boundary.id
-        }))
-      }
-    })
-    const databaseOptions: CreationBoundarySeriesOption[] = []
-    for (let index = 0; index < (response.data?.boundaries ?? []).length; index++) {
-      const item = response.data!.boundaries[index]!
-      if (!item.found || !item.timestamps?.length || item.timestamps.length !== item.values?.length) continue
-      const boundaryId = item.boundaryId || candidates[index]?.id
-      const boundary = candidates.find(candidate => candidate.id === boundaryId)
-      if (!boundary || !boundaryId) continue
-      databaseOptions.push({
-        value: `${boundaryId}:${layerId}`,
-        boundaryId,
-        label: `${boundary.name} · ${creationLayerOptions.value.find(layer => String(layer.id) === String(layerId))?.name ?? `时层${layerId}`}（边界数据库）`,
-        timestamps: item.timestamps.map(String),
-        values: item.values!.map(Number),
-        source: 'database'
-      })
-    }
-    const databaseIds = new Set(databaseOptions.map(option => option.value))
-    boundarySeriesOptions.value = [
-      ...databaseOptions,
-      ...boundarySeriesOptions.value.filter(option => !databaseIds.has(option.value))
-    ]
-  }
-  catch {
-    if (boundarySeriesOptions.value.length) {
-      boundarySeriesWarning.value = '边界数据库暂不可用，当前使用项目中保存的同层缓存。'
-    }
-    else {
-      boundarySeriesWarning.value = '边界数据库暂不可用，且项目中没有该时层的缓存曲线。'
-    }
-  }
-  finally {
-    boundarySeriesLoading.value = false
-  }
-}
-
-watch(() => newTask.canvasId, () => {
-  if (!creationGridOptions.value.some(option => option.value === newTask.poiId)) {
-    newTask.poiId = creationGridOptions.value[0]?.value ?? ''
-  }
-})
-
-watch(isIslandedFlexibility, (isIslanded) => {
-  if (!isIslanded) return
-  newTask.poiId = ''
-  if (newTask.requirementSource === 'agc_or_schedule') newTask.requirementSource = 'net_load_change'
-})
-
-watch(() => newTask.requirementSource, (source) => {
-  if (source !== 'agc_or_schedule') newTask.targetPoiPowerBoundaryId = ''
-})
-
-watch(
-  [() => newTask.flexibilityValueMode, () => flexibilityEvaluationLayerId.value],
-  ([mode]) => {
-    newTask.targetPoiPowerBoundaryId = ''
-    if (mode === 'boundary') void refreshBoundarySeriesOptions()
-  }
-)
-
 watch(showCreateDialog, async (open) => {
   if (open) {
-    newTask.targetPoiPowerBoundaryId = ''
     newTask.projectId = initialProjectId || selectedTask.value?.project_id || newTask.projectId
     newTask.canvasId = initialCanvasId || selectedTask.value?.canvas_id || newTask.canvasId
     newTask.simMode = 'multi_layer'
@@ -1775,94 +1263,6 @@ onMounted(async () => {
   }
 })
 
-const parseFlexibilityValueSpec = (
-  constantValue: number,
-  seriesValue: Record<string, number>,
-  fieldLabel: string,
-  nonnegative: boolean
-): FlexibilityValueSpec => {
-  if (newTask.flexibilityValueMode === 'constant') {
-    const value = Number(constantValue)
-    if (!Number.isFinite(value) || (nonnegative && value < 0)) {
-      throw new Error(`${fieldLabel}必须是${nonnegative ? '非负' : ''}有限数值`)
-    }
-    return value
-  }
-
-  if (!seriesValue || Object.keys(seriesValue).length === 0) {
-    throw new Error(`${fieldLabel}的分时数据必须是非空的时间戳对象`)
-  }
-
-  const result: Record<string, number> = {}
-  for (const [timestamp, rawValue] of Object.entries(seriesValue)) {
-    const value = Number(rawValue)
-    if (!Number.isFinite(value) || (nonnegative && value < 0)) {
-      throw new Error(`${fieldLabel}在 ${timestamp} 的值必须是${nonnegative ? '非负' : ''}有限数值`)
-    }
-    result[timestamp] = value
-  }
-  return result
-}
-
-const buildFlexibilityTaskConfig = (): FlexibilityTaskConfig => {
-  const islanded = isIslandedFlexibility.value
-  if (!islanded && creationGridOptions.value.length > 1 && !newTask.poiId) {
-    throw new Error('当前画布存在多个电网接口，请选择本次评价使用的并网点')
-  }
-  if (islanded && newTask.requirementSource === 'agc_or_schedule') {
-    throw new Error('离网系统没有并网点，不能使用AGC目标计划作为需求来源')
-  }
-
-  const config: FlexibilityTaskConfig = {
-    enabled: true,
-    layerId: flexibilityEvaluationLayerId.value,
-    // 后端兼容字段；当前优化模型始终采用经济运行基准，不再向用户暴露无效选项。
-    operationMode: 'economic_operation',
-    networkMode: islanded ? 'islanded' : 'grid_connected',
-    boundaryCondition: islanded ? 'islanded_local_balance' : 'grid_component_limits',
-    poiId: islanded ? null : (newTask.poiId || null),
-    requirementSource: newTask.requirementSource
-  }
-
-  if (newTask.requirementSource === 'agc_or_schedule') {
-    if (newTask.flexibilityValueMode === 'boundary') {
-      const boundaryId = newTask.targetPoiPowerBoundaryId.trim()
-      if (!boundaryId) throw new Error('请选择一条AGC目标计划边界曲线')
-      config.targetPoiPowerBoundaryId = boundaryId
-    }
-    else {
-      if (newTask.flexibilityValueMode !== 'constant' && seriesValidationErrors.target) {
-        throw new Error(seriesValidationErrors.target)
-      }
-      config.targetPoiPowerKw = parseFlexibilityValueSpec(
-        newTask.targetPoiPowerKw,
-        newTask.targetPoiPowerSeries,
-        '目标并网功率',
-        false
-      )
-    }
-  }
-  else if (newTask.requirementSource === 'user_defined') {
-    if (newTask.flexibilityValueMode !== 'constant') {
-      if (seriesValidationErrors.upward) throw new Error(seriesValidationErrors.upward)
-      if (seriesValidationErrors.downward) throw new Error(seriesValidationErrors.downward)
-    }
-    config.upwardRequirementKw = parseFlexibilityValueSpec(
-      newTask.upwardRequirementKw,
-      newTask.upwardRequirementSeries,
-      '上调需求',
-      true
-    )
-    config.downwardRequirementKw = parseFlexibilityValueSpec(
-      newTask.downwardRequirementKw,
-      newTask.downwardRequirementSeries,
-      '下调需求',
-      true
-    )
-  }
-  return config
-}
-
 const createTask = async () => {
   if (creatingTask.value) return
   if (!newTask.projectId) {
@@ -1879,7 +1279,6 @@ const createTask = async () => {
   }
   creatingTask.value = true
   try {
-    const flexibility = buildFlexibilityTaskConfig()
     // 单层仿真时使用 targetLayerId，多层仿真时使用 layerId（默认 '1'）
     const effectiveLayerId = newTask.simMode === 'single_layer' ? newTask.targetLayerId : newTask.layerId
     const res = await taskApi.createTask({
@@ -1893,11 +1292,10 @@ const createTask = async () => {
       simEndTime: simEndTime.value,
       simStartDate: creationTimeMode.value === 'calendar' ? simStartDate.value : null,
       simEndDate: creationTimeMode.value === 'calendar' ? simEndDate.value : null,
-      name: newTask.name || null,
-      flexibility
+      name: newTask.name || null
     })
     showCreateDialog.value = false
-    // 秒开：先立结果壳，列表/项目/灵活性后台补齐
+    // 秒开：先立结果壳，列表/项目后台补齐
     activeSection.value = 'overview'
     push({ tone: 'success', title: '任务已创建' })
     await selectTask(res.id, { instantShell: true })
@@ -2055,168 +1453,6 @@ const createTask = async () => {
                 />
               </div>
             </div>
-            </div>
-          </div>
-
-          <!-- 系统灵活性量化评估 -->
-          <div v-else-if="activeSection === 'flexibility'" class="flex-1 min-h-0 overflow-y-auto">
-            <div v-if="flexibilityLoading" class="flex h-full items-center justify-center text-sm text-app-muted">
-              正在加载灵活性评价结果...
-            </div>
-
-            <div v-else-if="flexibilityError" class="flex h-full flex-col items-center justify-center gap-3 text-sm">
-              <div class="max-w-xl rounded-[12px] border border-app-danger/30 bg-red-50 px-5 py-4 text-app-danger">
-                {{ flexibilityError }}
-              </div>
-              <AppButton label="重新加载" tone="primary" size="sm" @click="reloadFlexibility(selectedTask!.id)" />
-            </div>
-
-            <div v-else-if="!flexibilityConfig" class="flex h-full flex-col items-center justify-center gap-2 text-center">
-              <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-app-panel-soft text-2xl">↕️</div>
-              <p class="text-sm font-medium text-app-text">该历史任务未包含灵活性量化评估</p>
-              <p class="max-w-md text-xs leading-5 text-app-muted">
-                请新建计算任务；新任务将默认执行灵活性量化评估。
-              </p>
-            </div>
-
-            <div v-else class="space-y-3">
-              <section class="flex items-center gap-6 bg-app-panel-soft/60 px-4 py-2 text-sm">
-                <span class="text-app-muted">需求来源：<span class="font-medium text-app-text">{{ FLEXIBILITY_REQUIREMENT_LABELS[flexibilityConfig.requirementSource] ?? flexibilityConfig.requirementSource }}</span></span>
-                <span class="text-app-muted">网络口径：<span class="font-medium text-app-text">{{ flexibilityConfig.networkMode === 'islanded' ? '离网本地平衡' : '并网POI' }}</span></span>
-                <template v-if="flexibilityConfig.networkMode !== 'islanded'">
-                  <span class="text-app-muted">GRID功率边界：<span class="font-medium text-app-text">{{ flexibilityPoiLimits.minimum == null ? '--' : formatBoundaryPower(flexibilityPoiLimits.minimum) }} ～ {{ flexibilityPoiLimits.maximum == null ? '--' : formatBoundaryPower(flexibilityPoiLimits.maximum) }}</span></span>
-                </template>
-                <template v-else>
-                  <span class="text-app-muted">系统边界：<span class="font-medium text-app-text">无外部交换，内部资源承担平衡</span></span>
-                </template>
-              </section>
-
-              <section v-if="flexibilityData?.summaries.length" class="grid gap-3 xl:grid-cols-2">
-                <div
-                  v-for="direction in FLEXIBILITY_DIRECTIONS"
-                  :key="direction"
-                  class="bg-white border border-app-border p-4"
-                >
-                  <div class="mb-3 flex items-center justify-between">
-                    <h3 class="text-base">{{ FLEXIBILITY_DIRECTION_LABELS[direction] }}全时域指标</h3>
-                  </div>
-                  <div class="grid grid-cols-2 gap-2 lg:grid-cols-4">
-                    <div class="rounded-lg bg-app-panel-soft px-3 py-3">
-                      <div class="text-sm text-app-muted">全时域最小裕度</div>
-                      <div class="mt-1 text-base font-semibold text-app-text">{{ formatFlexValue(directionSummary(direction)?.minimum_margin) }} <span class="text-xs font-normal text-app-muted">kW</span></div>
-                    </div>
-                    <div class="rounded-lg bg-app-panel-soft px-3 py-3">
-                      <div class="text-sm text-app-muted">最大缺额</div>
-                      <div class="mt-1 text-base font-semibold text-app-text">{{ formatFlexValue(directionSummary(direction)?.maximum_deficit) }} <span class="text-xs font-normal text-app-muted">kW</span></div>
-                    </div>
-                    <div class="rounded-lg bg-app-panel-soft px-3 py-3">
-                      <div class="text-sm text-app-muted">缺额电量</div>
-                      <div class="mt-1 text-base font-semibold text-app-text">{{ formatFlexValue(directionSummary(direction)?.deficit_energy) }} <span class="text-xs font-normal text-app-muted">kWh</span></div>
-                    </div>
-                    <div class="rounded-lg bg-app-panel-soft px-3 py-3">
-                      <div class="text-sm text-app-muted">达标时段比例</div>
-                      <div
-                        class="mt-1 text-base font-semibold"
-                        :class="Number(directionSummary(direction)?.adequate_period_ratio) > 0.9 ? 'text-green-600' : 'text-orange-700'"
-                      >
-                        {{ formatFlexPercent(directionSummary(direction)?.adequate_period_ratio) }}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <div v-if="flexibilityPeriods.length" class="grid gap-3">
-                <FlexibilityRequirementSourceChart
-                  :key="selectedTask.id"
-                  :rows="flexibilityPeriods"
-                  :source="flexibilityConfig.requirementSource"
-                  :display-window="flexibilitySourceDisplayWindow"
-                  @update:display-window="updateFlexibilitySourceDisplayWindow"
-                  @open-demand-comparison="showFlexibilityDemandComparison = true"
-                  :sim-start-time="taskSimRange.start"
-                  :sim-end-minutes="taskSimRange.endMinutes"
-                  :sim-start-date="selectedTask.sim_start_date"
-                />
-                <FlexibilitySeriesChart
-                  :rows="flexibilityPeriods"
-                  :device-labels="codeToLabel"
-                  direction="up"
-                  :display-window="flexibilityDisplayWindow"
-                  @update:display-window="updateFlexibilityDisplayWindow"
-                  :sim-start-time="taskSimRange.start"
-                  :sim-end-time="taskSimRange.end"
-                  :sim-end-minutes="taskSimRange.endMinutes"
-                  :sim-start-date="selectedTask.sim_start_date"
-                />
-                <FlexibilitySeriesChart
-                  :rows="flexibilityPeriods"
-                  :device-labels="codeToLabel"
-                  direction="down"
-                  :display-window="flexibilityDisplayWindow"
-                  @update:display-window="updateFlexibilityDisplayWindow"
-                  :sim-start-time="taskSimRange.start"
-                  :sim-end-time="taskSimRange.end"
-                  :sim-end-minutes="taskSimRange.endMinutes"
-                  :sim-start-date="selectedTask.sim_start_date"
-                />
-              </div>
-
-              <FlexibilityDemandComparisonModal
-                v-if="showFlexibilityDemandComparison && flexibilityConfig.requirementSource === 'net_load_change'"
-                :rows="flexibilityPeriods"
-                :initial-window="flexibilitySourceDisplayWindow"
-                :sim-start-time="taskSimRange.start"
-                :sim-end-minutes="taskSimRange.endMinutes"
-                :sim-start-date="selectedTask.sim_start_date"
-                @close="showFlexibilityDemandComparison = false"
-              />
-
-              <div v-if="!flexibilityPeriods.length" class="flex min-h-52 items-center justify-center rounded-[12px] border border-dashed border-app-border text-sm text-app-muted">
-                {{ selectedTask.status === 'completed' ? '任务已完成，但暂无灵活性评价结果。' : '任务运行中，正在等待灵活性逐时段结果...' }}
-              </div>
-            </div>
-          </div>
-
-          <!-- 设备灵活性量化评估 -->
-          <div v-else-if="activeSection === 'device-flexibility'" class="flex-1 min-h-0 overflow-y-auto">
-            <div v-if="flexibilityLoading" class="flex h-full items-center justify-center text-sm text-app-muted">
-              正在加载设备灵活性评价结果...
-            </div>
-
-            <div v-else-if="flexibilityError" class="flex h-full flex-col items-center justify-center gap-3 text-sm">
-              <div class="max-w-xl rounded-[12px] border border-app-danger/30 bg-red-50 px-5 py-4 text-app-danger">
-                {{ flexibilityError }}
-              </div>
-              <AppButton label="重新加载" tone="primary" size="sm" @click="reloadFlexibility(selectedTask!.id)" />
-            </div>
-
-            <div v-else-if="!flexibilityConfig" class="flex h-full flex-col items-center justify-center gap-2 text-center">
-              <div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-app-panel-soft text-2xl">⚙️</div>
-              <p class="text-sm font-medium text-app-text">该历史任务未包含灵活性量化评估</p>
-              <p class="max-w-md text-xs leading-5 text-app-muted">
-                新任务会默认生成系统汇总和各设备灵活性明细。
-              </p>
-            </div>
-
-            <div v-else-if="deviceFlexibilityGroups.length" class="space-y-2">
-              <DeviceFlexibilityChart
-                v-for="device in deviceFlexibilityGroups"
-                :key="device.key"
-                :title="device.label"
-                :device-type="device.deviceType"
-                :rows="device.rows"
-                :boundary="device.boundary"
-                :sim-start-time="taskSimRange.start"
-                :sim-end-time="taskSimRange.end"
-                :sim-start-date="selectedTask.sim_start_date"
-                :display-window="deviceFlexDisplayWindow"
-                @update:display-window="updateDeviceFlexDisplayWindow"
-              />
-            </div>
-
-            <div v-else class="flex min-h-52 items-center justify-center rounded-[12px] border border-dashed border-app-border text-sm text-app-muted">
-              {{ selectedTask.status === 'completed' ? '任务已完成，但暂无设备灵活性评价结果。' : '任务运行中，正在等待设备灵活性结果...' }}
             </div>
           </div>
 
@@ -2814,159 +2050,7 @@ const createTask = async () => {
           <p v-else-if="creationProjectError" class="mt-2 text-xs text-app-danger">{{ creationProjectError }}</p>
         </section>
 
-        <section class="p-4">
-          <div>
-            <h3 class="text-base text-app-text">灵活性评价设置</h3>
-          </div>
 
-          <div class="mt-4 space-y-3 border-t border-primary/15 pt-4">
-            <div class="property-row-double">
-              <div class="flex items-center gap-2 flex-1">
-                <label class="property-label">需求来源</label>
-                <select
-                  v-model="newTask.requirementSource"
-                  class="flex-1 rounded-md border border-app-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option v-for="opt in availableRequirementOptions" :key="opt.value" :value="opt.value">
-                    {{ opt.label }}
-                  </option>
-                </select>
-              </div>
-              <div class="flex items-center gap-2 flex-1">
-                <label class="property-label">并网点</label>
-                <select
-                  v-model="newTask.poiId"
-                  :disabled="isIslandedFlexibility"
-                  class="flex-1 rounded-md border border-app-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-app-panel-soft disabled:text-app-muted"
-                >
-                  <option
-                    v-for="opt in (isIslandedFlexibility ? [{ value: '', label: '无并网点' }] : creationGridOptions)"
-                    :key="opt.value"
-                    :value="opt.value"
-                  >
-                    {{ opt.label }}
-                  </option>
-                </select>
-              </div>
-            </div>
-            
-            <div class="bg-white text-xs text-app-muted px-3">
-              {{ availableRequirementOptions.find(option => option.value === newTask.requirementSource)?.label }}：
-              {{ availableRequirementOptions.find(option => option.value === newTask.requirementSource)?.description }}
-            </div>
-
-            <div
-              v-if="selectedGridOption"
-              data-testid="poi-boundary-summary"
-              class="border border-app-border bg-white p-3"
-            >
-              <div class="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div class="text-xs text-app-text">并网点功率边界</div>
-                </div>
-                <button type="button" class="text-xs font-medium text-primary hover:underline" @click="openGridConfiguration">
-                  返回建模页
-                </button>
-              </div>
-              <div class="mt-3 grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
-                <div class="rounded-lg bg-app-panel-soft px-3 py-2">
-                  <div class="text-app-muted">接口容量</div>
-                  <div class="mt-1 font-medium text-app-text">{{ formatBoundaryPower(selectedGridOption.capacityKw) }}</div>
-                </div>
-                <div class="rounded-lg bg-app-panel-soft px-3 py-2">
-                  <div class="text-app-muted">上送上限</div>
-                  <div class="mt-1 font-medium text-app-text">{{ formatBoundaryPower(selectedGridOption.maximumPoiPowerKw) }}</div>
-                </div>
-                <div class="rounded-lg bg-app-panel-soft px-3 py-2">
-                  <div class="text-app-muted">购入下限</div>
-                  <div class="mt-1 font-medium text-app-text">{{ formatBoundaryPower(selectedGridOption.minimumPoiPowerKw) }}</div>
-                </div>
-                <div class="rounded-lg bg-app-panel-soft px-3 py-2">
-                  <div class="text-app-muted">上送 / 购入比例</div>
-                  <div class="mt-1 font-medium text-app-text">{{ (selectedGridOption.sellRatio * 100).toFixed(0) }}% / {{ (selectedGridOption.buyRatio * 100).toFixed(0) }}%</div>
-                </div>
-              </div>
-            </div>
-            <div
-              v-else
-              data-testid="islanded-boundary-summary"
-              class="bg-white text-xs text-app-muted px-3"
-            >
-              <div>离网模式不支持设置AGC目标计划</div>
-            </div>
-
-
-            <template v-if="newTask.requirementSource !== 'net_load_change'">
-              <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-                <span class="text-app-muted">数值输入方式</span>
-                <label class="inline-flex items-center gap-1.5">
-                  <input v-model="newTask.flexibilityValueMode" type="radio" value="constant" class="accent-primary">
-                  全时域常数
-                </label>
-                <label class="inline-flex items-center gap-1.5">
-                  <input v-model="newTask.flexibilityValueMode" type="radio" value="file" class="accent-primary">
-                  导入文件
-                </label>
-                <label class="inline-flex items-center gap-1.5">
-                  <input v-model="newTask.flexibilityValueMode" type="radio" value="boundary" class="accent-primary">
-                  项目边界数据库
-                </label>
-              </div>
-
-              <div v-if="newTask.requirementSource === 'agc_or_schedule'">
-                <label class="space-y-1 text-xs text-app-muted">
-                  <span>目标并网功率/kW（正值表示上送）</span>
-                  <input v-if="newTask.flexibilityValueMode === 'constant'" v-model.number="newTask.targetPoiPowerKw" type="number" step="100" class="field-input h-8 text-xs">
-                </label>
-                <FlexibilityTimeSeriesEditor
-                  v-if="newTask.flexibilityValueMode !== 'constant'"
-                  :key="`agc-${newTask.flexibilityValueMode}-${flexibilityEvaluationLayerId}`"
-                  v-model="newTask.targetPoiPowerSeries"
-                  :mode="newTask.flexibilityValueMode"
-                  label="目标并网功率"
-                  :boundary-options="boundarySeriesOptions"
-                  :expected-timestamps="expectedRequirementTimestamps"
-                  @update:boundary-id="newTask.targetPoiPowerBoundaryId = $event"
-                  @validation="seriesValidationErrors.target = $event"
-                />
-              </div>
-
-              <div v-else class="grid gap-3 sm:grid-cols-2">
-                <div class="space-y-1 text-xs text-app-muted">
-                  <span>上调需求（kW）</span>
-                  <input v-if="newTask.flexibilityValueMode === 'constant'" v-model.number="newTask.upwardRequirementKw" type="number" min="0" step="100" class="field-input h-8 text-xs">
-                  <FlexibilityTimeSeriesEditor
-                    v-else
-                    v-model="newTask.upwardRequirementSeries"
-                    :mode="newTask.flexibilityValueMode"
-                    label="上调需求"
-                    :nonnegative="true"
-                    :boundary-options="boundarySeriesOptions"
-                    :expected-timestamps="expectedRequirementTimestamps"
-                    @validation="seriesValidationErrors.upward = $event"
-                  />
-                </div>
-                <div class="space-y-1 text-xs text-app-muted">
-                  <span>下调需求（kW）</span>
-                  <input v-if="newTask.flexibilityValueMode === 'constant'" v-model.number="newTask.downwardRequirementKw" type="number" min="0" step="100" class="field-input h-8 text-xs">
-                  <FlexibilityTimeSeriesEditor
-                    v-else
-                    v-model="newTask.downwardRequirementSeries"
-                    :mode="newTask.flexibilityValueMode"
-                    label="下调需求"
-                    :nonnegative="true"
-                    :boundary-options="boundarySeriesOptions"
-                    :expected-timestamps="expectedRequirementTimestamps"
-                    @validation="seriesValidationErrors.downward = $event"
-                  />
-                </div>
-              </div>
-
-              <p v-if="newTask.flexibilityValueMode === 'boundary' && boundarySeriesLoading" class="text-xs text-app-muted">正在读取项目边界数据库...</p>
-              <p v-else-if="newTask.flexibilityValueMode === 'boundary' && boundarySeriesWarning" class="rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-700">{{ boundarySeriesWarning }}</p>
-            </template>
-          </div>
-        </section>
       </div>
       <template #footer>
         <AppButton label="取消" tone="neutral" @click="showCreateDialog = false" />

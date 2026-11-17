@@ -109,7 +109,6 @@ export interface CreateTaskRequest {
   simStartDate?: string | null
   simEndDate?: string | null
   name?: string | null
-  flexibility?: FlexibilityTaskConfig
 }
 
 export interface TaskDataRow {
@@ -219,67 +218,4 @@ export interface EconomyEvaluationResult {
   objectiveComposition: Record<string, Record<string, number>>
   metrics?: EconomyMetrics | null
   message?: string
-}
-
-
-// ───── 灵活性评估 ─────
-export type FlexibilityOperationMode =
-  | 'economic_operation'
-  | 'renewable_consumption'
-  | 'renewable_smoothing'
-  | 'agc_tracking'
-  | 'flexibility_enhancement'
-
-export type FlexibilityRequirementSource =
-  | 'net_load_change'
-  | 'agc_or_schedule'
-  | 'user_defined'
-
-export type FlexibilityValueSpec = number | Record<string, number>
-
-export interface FlexibilityPeriodResult {
-  timestamp: string
-  timestamp_minutes?: number
-  direction: 'up' | 'down'
-  requirement_source?: string
-  device_results?: DeviceFlexibilityResult[]
-  boundary_result?: DeviceFlexibilityResult | null
-  [key: string]: unknown
-}
-
-export interface DeviceFlexibilityResult {
-  device_id: string
-  device_type: string
-  timestamp: string
-  direction: 'up' | 'down'
-  [key: string]: unknown
-}
-
-export interface FlexibilitySummaryResult {
-  direction: 'up' | 'down'
-  [key: string]: unknown
-}
-
-export interface FlexibilityTaskConfig {
-  enabled: boolean
-  layerId?: string
-  applicationType?: string
-  operationMode?: string
-  boundaryCondition?: string
-  requirementSource?: FlexibilityRequirementSource
-  networkMode?: 'auto' | 'grid_connected' | 'islanded'
-  poiId?: string | null
-  targetPoiPowerKw?: FlexibilityValueSpec
-  targetPoiPowerBoundaryId?: string
-  upwardRequirementKw?: FlexibilityValueSpec
-  downwardRequirementKw?: FlexibilityValueSpec
-  upwardRequirementBoundaryId?: string
-  downwardRequirementBoundaryId?: string
-}
-
-export interface TaskFlexibilityResponse {
-  config?: FlexibilityTaskConfig | { enabled: boolean }
-  periods: FlexibilityPeriodResult[]
-  summaries: FlexibilitySummaryResult[]
-  probe?: Record<string, number | string | boolean>
 }

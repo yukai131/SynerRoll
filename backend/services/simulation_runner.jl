@@ -197,7 +197,7 @@ end
     _solve_layer!(ctx, task_id, component_dicts, algorithms, nodes, layer, sim_time, store_path, code_dir, solved_steps)
 
 构建并求解单个层。返回 (new_solved_steps, components)，失败时返回 nothing。
-components 为 build_model_tracked 实例化后的组件，可复用给灵活性评估，避免重复实例化。
+components 为 build_model_tracked 实例化后的组件。
 """
 function _solve_layer!(ctx, task_id::String, component_dicts::Vector, algorithms::Dict{String,Any},
     nodes::Vector, layer::Dict{String,Any}, sim_time::String, store_path::String, code_dir::String, solved_steps::Int;
@@ -342,91 +342,6 @@ function _extract_layer_cached!(cache::Dict{String,Any}, comps, layers_cfg, lid)
     end
 end
 
-function _flexibility_evaluation_timestamps(
-    layer::AbstractDict,
-    sim_time::String,
-    sim_end::Union{Nothing,String},
-)
-    for field in ("id", "step", "length", "forward")
-        haskey(layer, field) ||
-            throw(ArgumentError("Flexibility evaluation layer must contain $(field)."))
-    end
-    duration = string(layer["id"]) == "1" ?
-        string(layer["length"]) : string(layer["forward"])
-    step = string(layer["step"])
-    duration_minutes = time_str_to_minutes(duration)
-    step_minutes = time_str_to_minutes(step)
-    duration_minutes % step_minutes == 0 || throw(
-        ArgumentError("Flexibility evaluation window must be divisible by layer step."),
-    )
-    timestamps = generate_timestamps(sim_time, step, duration)
-    sim_end === nothing && return timestamps
-    end_minutes = time_label_to_minutes(sim_end)
-    return [
-        timestamp for timestamp in timestamps
-        if time_label_to_minutes(timestamp) + step_minutes <= end_minutes
-    ]
-end
-
-function _evaluate_flexibility_after_solve!(
-    ctx,
-    task_id::String,
-    components::Vector{<:AbstractComponent},
-    layer::AbstractDict,
-    sim_time::String,
-    sim_end::Union{Nothing,String},
-    store_path::String,
-    config::Union{Nothing,FlexibilityEvaluationConfig},
-)
-    config === nothing && return SystemFlexibilityMarginResult[]
-    string(layer["id"]) == config.layer_id ||
-        return SystemFlexibilityMarginResult[]
-    timestamps = _flexibility_evaluation_timestamps(layer, sim_time, sim_end)
-    isempty(timestamps) && return SystemFlexibilityMarginResult[]
-
-    return perf_measure("task", task_id, "flexibility_evaluate";
-        meta=Dict("layer_id" => layer["id"], "sim_time" => sim_time)) do
-        evaluation = evaluate_system_flexibility(
-            components,
-            store_path;
-            layer=layer,
-            timestamps=timestamps,
-            case_id=task_id,
-            config=config,
-        )
-        revision = perf_measure("task", task_id, "flexibility_write") do
-            persist_system_flexibility_period_results!(
-                store_path, config.layer_id, evaluation.margin_results,
-            )
-        end
-        rows = system_flexibility_margin_result_dict.(evaluation.margin_results)
-        broadcast_event(ctx, Dict(
-            "type" => "flexibility",
-            "taskId" => task_id,
-            "layerId" => config.layer_id,
-            "revision" => revision,
-            "committedAtMs" => round(Int, time() * 1000),
-            "startTimestamp" => first(timestamps),
-            "endTimestamp" => time_label_add(last(timestamps), string(layer["step"])),
-            "rows" => rows,
-        ))
-        evaluation.margin_results
-    end
-end
-
-function _finish_flexibility_evaluation!(ctx, task_id, store_path, config, margins)
-    config === nothing && return nothing
-    isempty(margins) && error("灵活性评价未产生时段结果，评价层：$(config.layer_id)。")
-    summaries = summarize_system_flexibility_margin(margins)
-    persist_system_flexibility_summary_results!(store_path, config.layer_id, summaries)
-    broadcast_event(ctx, Dict(
-        "type" => "flexibility_summary", "taskId" => task_id,
-        "layerId" => config.layer_id,
-        "rows" => system_flexibility_margin_summary_result_dict.(summaries),
-    ))
-    return nothing
-end
-
 # ════════════════════════════════════════════════════════════════
 # 单层仿真主函数
 # ════════════════════════════════════════════════════════════════
@@ -475,11 +390,6 @@ function run_single_layer_task(task_id::String, task::Dict)
         end
         build_result === nothing && return nothing
         all_layers, nodes = build_result
-        flexibility_config = flexibility_evaluation_config_from_task(task)
-        if flexibility_config !== nothing && flexibility_config.layer_id != target_layer_id
-            error("单层仿真的灵活性评价层必须与仿真目标层 $(target_layer_id) 一致。")
-        end
-        flexibility_margins = SystemFlexibilityMarginResult[]
 
         # 验证目标层是否存在
         if !haskey(all_layers, target_layer_id)
@@ -498,10 +408,7 @@ function run_single_layer_task(task_id::String, task::Dict)
             sim_end_time=get(task, "sim_end_time", nothing),
             sim_start_date=get(task, "sim_start_date", nothing),
             sim_end_date=get(task, "sim_end_date", nothing),
-            boundary_ids=unique(vcat(
-                _canvas_boundary_ids(project_json, string(task["canvas_id"])),
-                flexibility_config === nothing ? String[] : flexibility_boundary_ids(flexibility_config),
-            )),
+            boundary_ids=_canvas_boundary_ids(project_json, string(task["canvas_id"])),
         )
         end
         boundary_result === nothing && return nothing
@@ -564,11 +471,7 @@ function run_single_layer_task(task_id::String, task::Dict)
             # ★ [数学业务] 求解目标层
             solve_out = _solve_layer!(ctx, task_id, component_dicts, algorithms, nodes, target_layer, sim_time, store_path, code_dir, solved_steps; all_layers=all_layers)
             solve_out === nothing && return nothing
-            solved_steps, solved_comps = solve_out
-            append!(flexibility_margins, _evaluate_flexibility_after_solve!(
-                ctx, task_id, solved_comps, target_layer, sim_time, sim_end,
-                store_path, flexibility_config,
-            ))
+            solved_steps, _ = solve_out
 
             perf_measure("task", task_id, "throttle_wait") do
                 sleep(0.1) # 必须存在，否则求解速度超过数据库读写速度，会导致前端渲染阻塞
@@ -586,7 +489,6 @@ function run_single_layer_task(task_id::String, task::Dict)
         # ════════════════════════════════════════════
         # 阶段 5 — 完成
         # ════════════════════════════════════════════
-        _finish_flexibility_evaluation!(ctx, task_id, store_path, flexibility_config, flexibility_margins)
         update_task_status!(task_id, TASK_COMPLETED)
         broadcast_event(ctx, Dict("type" => "completed", "taskId" => task_id, "finalTime" => sim_time, "solvedSteps" => solved_steps))
         remove_context(task_id)
@@ -649,14 +551,6 @@ function run_task(task_id::String, task::Dict)
         end
         build_result === nothing && return nothing
         all_layers, nodes = build_result
-        flexibility_config = flexibility_evaluation_config_from_task(task)
-        if flexibility_config !== nothing && !haskey(all_layers, flexibility_config.layer_id)
-            error(
-                "flexibility.layerId=$(flexibility_config.layer_id) does not exist " *
-                "in project layerConfig.",
-            )
-        end
-        flexibility_margins = SystemFlexibilityMarginResult[]
 
         # ════════════════════════════════════════════
         # 阶段 3 — 边界注入
@@ -668,7 +562,7 @@ function run_task(task_id::String, task::Dict)
             sim_end_time=get(task, "sim_end_time", nothing),
             sim_start_date=get(task, "sim_start_date", nothing),
             sim_end_date=get(task, "sim_end_date", nothing),
-            boundary_ids=unique(vcat(_canvas_boundary_ids(project_json, string(task["canvas_id"])), flexibility_config === nothing ? String[] : flexibility_boundary_ids(flexibility_config))),
+            boundary_ids=_canvas_boundary_ids(project_json, string(task["canvas_id"])),
         )
         end
         boundary_result === nothing && return nothing
@@ -726,20 +620,7 @@ function run_task(task_id::String, task::Dict)
             if layer1 !== nothing
                 solve_out = _solve_layer!(ctx, task_id, component_dicts, algorithms, nodes, layer1, sim_time, store_path, code_dir, solved_steps; all_layers=all_layers)
                 solve_out === nothing && return nothing
-                solved_steps, solved_comps = solve_out
-                append!(
-                    flexibility_margins,
-                    _evaluate_flexibility_after_solve!(
-                        ctx,
-                        task_id,
-                        solved_comps,
-                        layer1,
-                        sim_time,
-                        sim_end,
-                        store_path,
-                        flexibility_config,
-                    ),
-                )
+                solved_steps, _ = solve_out
             end
 
             # ★ [数学业务] 内层循环：在当前窗口内滚动下层
@@ -767,20 +648,7 @@ function run_task(task_id::String, task::Dict)
                     if is_time_divisible(inner_sim_time, fwd)
                         solve_out = _solve_layer!(ctx, task_id, component_dicts, algorithms, nodes, flayer, inner_sim_time, store_path, code_dir, solved_steps; all_layers=all_layers)
                         solve_out === nothing && return nothing
-                        solved_steps, solved_comps = solve_out
-                        append!(
-                            flexibility_margins,
-                            _evaluate_flexibility_after_solve!(
-                                ctx,
-                                task_id,
-                                solved_comps,
-                                flayer,
-                                inner_sim_time,
-                                sim_end,
-                                store_path,
-                                flexibility_config,
-                            ),
-                        )
+                        solved_steps, _ = solve_out
                     end
                 end
 
@@ -808,7 +676,6 @@ function run_task(task_id::String, task::Dict)
         # ════════════════════════════════════════════
         # 阶段 5 — 完成
         # ════════════════════════════════════════════
-        _finish_flexibility_evaluation!(ctx, task_id, store_path, flexibility_config, flexibility_margins)
         update_task_status!(task_id, TASK_COMPLETED)
         broadcast_event(ctx, Dict("type" => "completed", "taskId" => task_id, "finalTime" => sim_time, "solvedSteps" => solved_steps))
         remove_context(task_id)

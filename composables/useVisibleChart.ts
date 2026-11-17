@@ -5,7 +5,7 @@ import type { ECharts } from 'echarts'
 export function useVisibleChart(
   element: Ref<HTMLElement | null>, render: () => void,
   getChart: () => ECharts | null, label: () => string, version: () => number = () => 0,
-  channel: 'series' | 'flexibility' = 'series',
+  channel: 'series' = 'series',
 ) {
   const visible = ref(false)
   let dirty = true

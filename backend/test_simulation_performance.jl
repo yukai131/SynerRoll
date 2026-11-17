@@ -2,7 +2,6 @@ using Test, Dates, SQLite, DBInterface, Tables, JSON3
 
 include(joinpath(@__DIR__, "utils", "timestr_utils.jl"))
 include(joinpath(@__DIR__, "utils", "timeseries_utils.jl"))
-include(joinpath(@__DIR__, "services", "flexibility_result_service.jl"))
 include(joinpath(@__DIR__, "utils", "economy_calculator.jl"))
 include(joinpath(@__DIR__, "services", "economy_evaluation_service.jl"))
 const BACKEND_DATA_DIR = mktempdir()
@@ -37,14 +36,6 @@ include(joinpath(@__DIR__, "utils", "perf_probe.jl"))
         @test get_ts_exact(path, key, "1:00") == 20.
         rows, _ = snapshot_rows(path; skip_boundary=true)
         @test [row["value"] for row in rows] == [1., 20., 30., 3.]
-        # Existing tasks are migrated lazily once per opened store.
-        store = get_store(path)
-        _exec(store.db, "CREATE TABLE flexibility_period_results(layer_id TEXT,timestamp TEXT,timestamp_minutes INTEGER,next_timestamp TEXT,case_id TEXT,application_type TEXT,operation_mode TEXT,boundary_condition TEXT,poi_id TEXT,direction TEXT,requirement_source TEXT,result_json TEXT,updated_at TEXT)")
-        _ensure_flexibility_result_tables!(store)
-        @test store.flexibility_initialized
-        @test "revision" in String.(_query(store.db, "PRAGMA table_info(flexibility_period_results)")[2])
-        @test Int(_query(store.db, "SELECT version FROM task_result_versions WHERE kind='flexibility'")[1][1]) == 0
-        _ensure_flexibility_result_tables!(store)
     finally
         close_store(path)
     end
@@ -65,13 +56,13 @@ end
 @testset "WS events are delivered and a full subscriber never blocks the solver" begin
     ctx = get_or_create_context("ws-fixture", "offline", nothing, joinpath(BACKEND_DATA_DIR, "timeseries.db"))
     channel = subscribe(ctx)
-    broadcast_event(ctx, Dict("type" => "flexibility", "revision" => 1))
+    broadcast_event(ctx, Dict("type" => "data", "revision" => 1))
     @test Base.n_avail(channel) == 1
     @test isready(channel) && take!(channel)["revision"] == 1
     for revision in 1:TASK_EVENT_BUFFER
-        broadcast_event(ctx, Dict("type" => "flexibility", "revision" => revision))
+        broadcast_event(ctx, Dict("type" => "data", "revision" => revision))
     end
-    pending = @async broadcast_event(ctx, Dict("type" => "flexibility", "revision" => 100))
+    pending = @async broadcast_event(ctx, Dict("type" => "data", "revision" => 100))
     @test timedwait(() -> istaskdone(pending), 1.0) == :ok
     @test Base.n_avail(channel) == TASK_EVENT_BUFFER
     unsubscribe(ctx, channel)

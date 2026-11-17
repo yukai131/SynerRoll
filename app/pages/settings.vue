@@ -232,7 +232,7 @@ onMounted(() => {
             <img src="/logo.png" alt="软件图标" class="h-14 w-14 rounded-xl object-contain">
             <div class="min-w-0 flex-1">
               <p class="text-base font-semibold text-primary">{{ brand.displayName }}</p>
-              <p class="mt-1 text-sm text-app-muted">{{ brand.publisher }} · {{ brand.publisherEnglish }} · 版本 {{ brand.version }}</p>
+              <p class="mt-1 text-sm text-app-muted">{{ brand.publisher }} · 版本 {{ brand.version }}</p>
             </div>
             <div v-if="desktopAvailable" class="flex flex-wrap gap-2">
               <AppButton label="数据目录" tone="neutral" @click="openDesktopLocation('data')" />

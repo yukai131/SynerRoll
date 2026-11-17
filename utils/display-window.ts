@@ -9,7 +9,6 @@ export interface ChartDisplayWindow {
   end: number
 }
 
-export type FlexibilityDisplayWindow = ChartDisplayWindow
 
 export function createDisplayWindow(dateStart: number, dateEnd: number): ChartDisplayWindow {
   const start = Math.min(dateStart, dateEnd)

@@ -68,15 +68,6 @@ using UUIDs: uuid4
             end_date < start_date && error("仿真终止日期不能早于起始日期")
         end
         name_val = isempty(name) ? nothing : name
-        flexibility_config = normalize_flexibility_evaluation_config(
-            get(body, "flexibility", nothing);
-            default_layer_id=layer_id,
-        )
-        flexibility_extra = flexibility_config === nothing ?
-            StringAnyDict("enabled" => false) :
-            flexibility_evaluation_config_dict(flexibility_config)
-        extra_json = JSON3.write(StringAnyDict("flexibility" => flexibility_extra))
-
         # 存储 project.json 到任务目录（parse 阶段读取）
         task_dir = joinpath(TASKS_DATA_ROOT, task_id)
         mkpath(task_dir)
@@ -94,7 +85,7 @@ using UUIDs: uuid4
             sim_start_date  = sim_start_date,
             sim_end_date    = sim_end_date,
             params_hash     = params_hash,
-            extra_json      = extra_json,
+            extra_json      = "{}",
         )
 
         task = get_task(task_id)
@@ -286,73 +277,6 @@ end
         return json_success(data = Dict("rows" => rows))
     catch e
         return json_error("拉回溯数据异常: $(sprint(showerror, e))")
-    end
-end
-
-# ───── GET /api/task/{id}/flexibility（拉灵活性逐时段与全时域结果）──
-# probe 用于卡顿排查；minTs 可只拉较新的 period，减轻全量 JSON 解析
-@get "/api/task/{id}/flexibility" function (req, id)
-    try
-        t0 = time()
-        task = get_task(id)
-        task === nothing && return json_error("任务不存在: $id")
-        config = flexibility_evaluation_config_from_task(task)
-        q = query_params(req)
-        requested_layer_id = get(q, "layerId", nothing)
-        layer_id = if requested_layer_id === nothing
-            config === nothing ? String(task["layer_id"]) : config.layer_id
-        else
-            String(requested_layer_id)
-        end
-        store_path = joinpath(TASKS_DATA_ROOT, id, "timeseries.db")
-        if !isfile(store_path)
-            return json_success(data=Dict(
-                "config" => config === nothing ? Dict("enabled" => false) :
-                    flexibility_evaluation_config_dict(config),
-                "periods" => Dict{String,Any}[],
-                "summaries" => Dict{String,Any}[],
-                "probe" => Dict("total_ms" => (time() - t0) * 1000),
-            ))
-        end
-
-        min_minutes = 0
-        min_ts_label = ""
-        if haskey(q, "minMinutes") && String(q["minMinutes"]) != ""
-            min_minutes = parse(Int, String(q["minMinutes"]))
-            min_ts_label = minutes_to_time_label(min_minutes)
-        elseif haskey(q, "minTs") && String(q["minTs"]) != ""
-            min_ts_label = String(q["minTs"])
-            min_minutes = time_label_to_minutes(min_ts_label)
-        end
-
-        periods, period_probe = read_system_flexibility_period_results(
-            store_path;
-            layer_id=layer_id,
-            min_minutes=min_minutes,
-        )
-        summaries, summary_probe = read_system_flexibility_summary_results(
-            store_path;
-            layer_id=layer_id,
-        )
-        probe = Dict{String,Any}(
-            "total_ms" => (time() - t0) * 1000,
-            "period_lock_ms" => get(period_probe, "lock_wait_ms", 0.0),
-            "period_query_ms" => get(period_probe, "query_ms", 0.0),
-            "period_parse_ms" => get(period_probe, "parse_ms", 0.0),
-            "period_count" => get(period_probe, "count", 0),
-            "summary_count" => get(summary_probe, "count", 0),
-            "min_ts" => min_ts_label,
-            "min_minutes" => min_minutes,
-        )
-        return json_success(data=Dict(
-            "config" => config === nothing ? Dict("enabled" => false) :
-                flexibility_evaluation_config_dict(config),
-            "periods" => periods,
-            "summaries" => summaries,
-            "probe" => probe,
-        ))
-    catch e
-        return json_error("拉灵活性结果异常: $(sprint(showerror, e))")
     end
 end
 

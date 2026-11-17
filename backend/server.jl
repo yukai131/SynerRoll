@@ -21,8 +21,6 @@ begin
     include("core/component_framework.jl")
     include("core/schema.jl")
     include("core/validation.jl")
-    include("core/flexibility.jl")
-    include("core/system_flexibility.jl")
 
     # 容量规划类型和检测模块（不依赖 utils）
     include("services/capacity_planning/types.jl")
@@ -42,7 +40,6 @@ begin
     include("utils/fitting_curve.jl")
     include("services/fitting_service.jl")
     include("utils/perf_probe.jl")
-    include("utils/flexibility_utils.jl")
     include("utils/economy_calculator.jl")
 
     # 容量规划存储和服务模块（依赖 utils 中的 get_store/_query/_exec）
@@ -58,103 +55,86 @@ begin
     include("components/wind_turbine/component.jl")
     include("components/wind_turbine/validation.jl")
     include("components/wind_turbine/model-common.jl")
-    include("components/wind_turbine/flexibility.jl")
     include("components/wind_turbine/model.jl")
 
     include("components/photovoltaic/component.jl")
     include("components/photovoltaic/validation.jl")
     include("components/photovoltaic/model-common.jl")
-    include("components/photovoltaic/flexibility.jl")
     include("components/photovoltaic/model.jl")
 
     include("components/coal_power/component.jl")
     include("components/coal_power/validation.jl")
     include("components/coal_power/model-common.jl")
-    include("components/coal_power/flexibility.jl")
     include("components/coal_power/model.jl")
 
     include("components/gas_power/component.jl")
     include("components/gas_power/validation.jl")
     include("components/gas_power/model-common.jl")
-    include("components/gas_power/flexibility.jl")
     include("components/gas_power/model.jl")
 
     include("components/combined_heat_power/component.jl")
     include("components/combined_heat_power/validation.jl")
     include("components/combined_heat_power/model-common.jl")
-    include("components/combined_heat_power/flexibility.jl")
     include("components/combined_heat_power/model.jl")
 
     include("components/electrolyzer/component.jl")
     include("components/electrolyzer/validation.jl")
     include("components/electrolyzer/model-common.jl")
-    include("components/electrolyzer/flexibility.jl")
     include("components/electrolyzer/model.jl")
 
     include("components/electricity_load/component.jl")
     include("components/electricity_load/validation.jl")
     include("components/electricity_load/model-common.jl")
-    include("components/electricity_load/flexibility.jl")
     include("components/electricity_load/model.jl")
 
     include("components/hydrogen_load/component.jl")
     include("components/hydrogen_load/validation.jl")
     include("components/hydrogen_load/model-common.jl")
-    include("components/hydrogen_load/flexibility.jl")
     include("components/hydrogen_load/model.jl")
 
     include("components/electricity_storage/component.jl")
     include("components/electricity_storage/validation.jl")
     include("components/electricity_storage/model-common.jl")
-    include("components/electricity_storage/flexibility.jl")
     include("components/electricity_storage/model.jl")
 
     include("components/hydrogen_storage/component.jl")
     include("components/hydrogen_storage/validation.jl")
     include("components/hydrogen_storage/model-common.jl")
-    include("components/hydrogen_storage/flexibility.jl")
     include("components/hydrogen_storage/model.jl")
 
     include("components/flywheel_storage/component.jl")
     include("components/flywheel_storage/validation.jl")
     include("components/flywheel_storage/model-common.jl")
-    include("components/flywheel_storage/flexibility.jl")
     include("components/flywheel_storage/model.jl")
 
     include("components/compressed_air_storage/component.jl")
     include("components/compressed_air_storage/validation.jl")
     include("components/compressed_air_storage/model-common.jl")
-    include("components/compressed_air_storage/flexibility.jl")
     include("components/compressed_air_storage/model.jl")
 
     include("components/pumped_storage/component.jl")
     include("components/pumped_storage/validation.jl")
     include("components/pumped_storage/model-common.jl")
-    include("components/pumped_storage/flexibility.jl")
     include("components/pumped_storage/model.jl")
 
     include("components/heat_load/component.jl")
     include("components/heat_load/validation.jl")
     include("components/heat_load/model-common.jl")
-    include("components/heat_load/flexibility.jl")
     include("components/heat_load/model.jl")
 
     include("components/power_grid/component.jl")
     include("components/power_grid/validation.jl")
     include("components/power_grid/model-common.jl")
-    include("components/power_grid/flexibility.jl")
     include("components/power_grid/model.jl")
 
     include("components/hydrogen_grid/component.jl")
     include("components/hydrogen_grid/validation.jl")
     include("components/hydrogen_grid/model-common.jl")
-    include("components/hydrogen_grid/flexibility.jl")
     include("components/hydrogen_grid/model.jl")
 
     include("components/hydro_power/component.jl")
     include("components/hydro_power/validation.jl")
     include("components/hydro_power/model-common.jl")
-    include("components/hydro_power/flexibility.jl")
     include("components/hydro_power/model.jl")
 
     include("services/model_service.jl")
@@ -162,13 +142,6 @@ begin
     # 经济性评价服务
     include("services/economy_evaluation_service.jl")
 
-    # 灵活性评价服务
-    include("services/flexibility_baseline_adapter.jl")
-    include("services/flexibility_supply_service.jl")
-    include("services/flexibility_requirement_service.jl")
-    include("services/flexibility_margin_service.jl")
-    include("services/flexibility_evaluation_service.jl")
-    include("services/flexibility_result_service.jl")
 
     # 容量规划服务（后期加载，依赖 services）
     include("services/capacity_planning/lifecycle_economics.jl")

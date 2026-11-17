@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import brand from '~~/config/brand.json'
 import type { Project } from '~~/types/project'
 import type { LayerDefinition } from '~~/types/simulation'
 
@@ -28,7 +29,7 @@ const project = computed(() => projectState.value)
 const activeCanvasId = computed(() => project.value?.workspace.activeCanvasId ?? '')
 
 useHead(() => ({
-  title: project.value ? `${project.value.name} - 算法配置` : '算法配置 - 新能源发电系统灵活性量化评估软件'
+  title: project.value ? `${project.value.name} - 算法配置` : `算法配置 - ${brand.displayName}`
 }))
 
 const saveProject = async () => {

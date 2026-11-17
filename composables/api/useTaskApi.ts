@@ -4,7 +4,6 @@ import type {
   CreateTaskRequest,
   EconomyEvaluationResult,
   TaskDataResponse,
-  TaskFlexibilityResponse,
   TaskTraceDataResponse,
   TaskTraceStepsResponse
 } from '~~/types/api'
@@ -98,25 +97,6 @@ export const useTaskApi = () => {
         `/task/${taskId}/data${qs ? `?${qs}` : ''}`
       )
     },
-
-    getFlexibility: (taskId: string, layerId?: string, minMinutes?: number, afterRevision?: number) => {
-      const q = new URLSearchParams()
-      if (layerId) q.set('layerId', layerId)
-      if (afterRevision !== undefined) q.set('afterRevision', String(afterRevision))
-      if (typeof minMinutes === 'number' && minMinutes > 0) {
-        q.set('minMinutes', String(minMinutes))
-      }
-      const qs = q.toString()
-      return apiClient.get<TaskFlexibilityResponse>(
-        `/task/${taskId}/flexibility${qs ? `?${qs}` : ''}`
-      )
-    },
-
-    getTraceSteps: (taskId: string) =>
-      apiClient.get<TaskTraceStepsResponse>(`/task/${taskId}/trace`),
-
-    getTraceData: (taskId: string, step: number) =>
-      apiClient.get<TaskTraceDataResponse>(`/task/${taskId}/trace/${step}`),
 
     getEconomy: (taskId: string) =>
       apiClient.get<EconomyEvaluationResult>(`/task/${taskId}/economy`)

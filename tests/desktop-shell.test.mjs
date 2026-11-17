@@ -67,7 +67,14 @@ async function desktopFixture() {
     if (name === 'electron') return electron
     if (name === './license.cjs') return { verifyLicenseKey: key => ({ valid: key === 'valid-fixture' }) }
     if (name === './runtime.cjs') return { juliaConfiguration: () => ({ env: {}, args: [], backend: shellRoot, executable: 'julia.exe', cacheMode: 'test', depot: 'test' }) }
-    if (name === 'node:fs') return { ...require(name), readFileSync: (file, ...args) => require(name).readFileSync(String(file).endsWith('brand.json') ? join(root, 'config/brand.json') : file, ...args) }
+    if (name === 'node:fs') return { ...require(name), readFileSync: (file, ...args) => {
+      const source = String(file).endsWith('config/brand.json') || String(file).endsWith('config\\brand.json')
+        ? join(root, 'config/brand.json')
+        : String(file).endsWith('config/synerroll.json') || String(file).endsWith('config\\synerroll.json')
+          ? join(root, 'packaging/config/synerroll.json')
+          : file
+      return require(name).readFileSync(source, ...args)
+    } }
     if (name === 'node:child_process') return { spawn: (file, args) => {
       launches.push({ file, args })
       const child = Object.assign(new EventEmitter(), { pid: 90000 + launches.length, exitCode: null,

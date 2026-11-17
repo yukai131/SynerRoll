@@ -825,8 +825,6 @@ const BOUNDARY_MEANING_LABELS = Dict(
     "buy_price" => "购电价格",
     "sell_price" => "售电价格",
     "fuel_price" => "燃料价格",
-    "flex_up" => "上调灵活性",
-    "flex_down" => "下调灵活性",
 )
 
 _meaning_label(meaning::AbstractString) =

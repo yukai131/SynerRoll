@@ -41,7 +41,6 @@ export const chapter2: DocChapter = {
             ['component.jl', '组件数据结构与注册'],
             ['model-common.jl', '参数解析 resolve_*_params() 与共享数学函数'],
             ['model.jl', 'JuMP 建模 + CodeTracer 代码追踪（生产）'],
-            ['flexibility.jl', '该设备的灵活性计算口径'],
             ['validation.jl', '参数与模型校验']
           ]
         },

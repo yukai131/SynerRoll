@@ -51,6 +51,10 @@ export const normalizeProject = (project: Project): Project => {
 
   return {
     ...project,
+    // 兼容旧版自动填写的交付单位；保留用户自行设置的其他负责人。
+    owner: /^龙源\s*[（(]\s*北京\s*[）)]\s*新能源工程技术有限公司$/.test(project.owner?.trim() ?? '')
+      ? brand.publisher
+      : project.owner,
     workspace: normalizedWorkspace,
     algorithm: {
       ...algorithm,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import brand from '~~/config/brand.json'
 import { nextTick, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { Project } from '~~/types/project'
@@ -14,6 +15,7 @@ import type {
 // import { BOUNDARY_MEANING_LABELS, BOUNDARY_COMPONENT_MAPPINGS, INTERPOLATE_OPTIONS, DISTRIBUTION_OPTIONS, TIME_STEP_OPTIONS } from '~~/types/boundary'
 import {
   BOUNDARY_MEANING_LABELS,
+  isSupportedBoundary,
   BOUNDARY_MODULE_OPTIONS,
   BOUNDARY_MODULE_LABELS,
   INTERPOLATE_OPTIONS,
@@ -249,12 +251,6 @@ const boundaryTabItem = (tabKey: string) => ({
 const hasFittingData = (model: FittingModel): boolean =>
   Boolean(model.params) || (model.curve?.length ?? 0) > 0 || Boolean(model.formulaText)
 
-/** AGC 无组件关联概念：仅看 boundary.db 是否有数据 */
-const isAgcBoundary = (tabKey: string): boolean => {
-  const item = project.value?.boundaries.find(b => b.id === tabKey)
-  return item ? resolveBoundaryModuleKey(item) === 'agc' : false
-}
-
 /** 标签状态：边界看 boundary.db；拟合看自身模型是否为空 */
 const tabStatusOf = (tabKey: string, kind: 'boundary' | 'fitting'): BoundaryDataStatus => {
   if (kind === 'fitting') {
@@ -262,18 +258,11 @@ const tabStatusOf = (tabKey: string, kind: 'boundary' | 'fitting'): BoundaryData
     if (!model) return 'unlinked'
     return resolveBoundaryDataStatus(model, hasFittingData(model))
   }
-  if (isAgcBoundary(tabKey)) {
-    return dbHasDataIds.value.has(tabKey) ? 'ready' : 'empty'
-  }
   return resolveBoundaryDataStatus(boundaryTabItem(tabKey), dbHasDataIds.value.has(tabKey))
 }
 
 const tabStatusLabelOf = (tabKey: string, kind: 'boundary' | 'fitting'): string => {
   const status = tabStatusOf(tabKey, kind)
-  // AGC 无「已关联/未关联」，只有有数据 / 空数据
-  if (kind === 'boundary' && isAgcBoundary(tabKey)) {
-    return status === 'ready' ? '有数据' : '空数据'
-  }
   return BOUNDARY_DATA_STATUS_LABELS[status]
 }
 
@@ -432,7 +421,6 @@ const moduleGroups = computed(() => {
     weather: [],
     load: [],
     price: [],
-    agc: []
   }
 
   // 设备参数拟合：机型列表
@@ -476,7 +464,7 @@ watch(activeModuleKey, (key) => {
   }
 })
 
-// 物理含义选项：按当前所在子栏目约束（power 允许气象/AGC 双归属）
+// 物理含义选项：按当前所在子栏目约束
 const formModuleKey = computed<BoundaryModuleKey>(() => {
   if (currentBoundary.value) {
     return resolveBoundaryModuleKey(currentBoundary.value)
@@ -743,8 +731,10 @@ async function initBoundaries() {
     proj.boundaries = []
   }
 
-  // 如果已经有边界数据，跳过自动创建
-  if (proj.boundaries.length > 0) {
+  // 已停用类别保留在项目中，仅展示当前支持的边界。
+  const activeBoundaries = proj.boundaries.filter(isSupportedBoundary)
+  // 如果已经有可用边界数据，跳过自动创建
+  if (activeBoundaries.length > 0) {
     // 初始化共享文件路径缓存（取最后一个非空值）
     for (let i = proj.boundaries.length - 1; i >= 0; i--) {
       if (proj.boundaries[i]!.filePath.trim()) {
@@ -753,7 +743,7 @@ async function initBoundaries() {
       }
     }
     // 更新标签页（侧边栏按子栏目分组展示）
-    tabs.value = proj.boundaries.map((b, i) => ({
+    tabs.value = activeBoundaries.map((b, i) => ({
       key: b.id,
       label: b.name || `边界 ${i + 1}`
     }))
@@ -762,9 +752,9 @@ async function initBoundaries() {
       // 支持从容量规划「返回边界配置」带 ?boundaryId= 直接定位
       const deepLinkId = String(route.query.boundaryId ?? '').trim()
       const deepLinked = deepLinkId
-        ? proj.boundaries.find(b => b.id === deepLinkId)
+        ? activeBoundaries.find(b => b.id === deepLinkId)
         : null
-      const target = deepLinked ?? proj.boundaries[0]
+      const target = deepLinked ?? activeBoundaries[0]
       activeTab.value = target?.id ?? tabs.value[0]!.key
       expandAllModules()
       loadBoundary(activeTab.value)
@@ -1785,7 +1775,7 @@ onMounted(() => {
 })
 
 useHead(() => ({
-  title: project.value ? `${project.value.name} - 边界配置` : '边界配置 - 新能源发电系统灵活性量化评估软件'
+  title: project.value ? `${project.value.name} - 边界配置` : `边界配置 - ${brand.displayName}`
 }))
 
 // 返回编辑页

@@ -1,12 +1,12 @@
-# 新能源发电系统灵活性量化评估软件
+# 综合能源系统配置策略优化软件
 
-综合能源系统建模、滚动仿真、灵活性分析、经济评价与容量规划工作台。前端使用 Nuxt/Vue，计算后端使用 Julia/JuMP，Windows 桌面壳使用 Electron。
+综合能源系统建模、滚动仿真、经济评价与容量规划工作台。前端使用 Nuxt/Vue，计算后端使用 Julia/JuMP，Windows 桌面壳使用 Electron。
 
 ## 安装与使用
 
-从 [Releases](https://github.com/yukai131/SynerRoll-main/releases) 下载并运行 `PSFA-Setup-1.0.0-x64.exe`。安装包包含 Electron、Node.js、Julia 和 HiGHS，用户无需额外安装这些环境。COPT 需用户自行安装及配置许可。每次启动使用原有离线许可证 Key 验证，发布单位为龙源（北京）新能源工程技术有限公司。详细说明见 [使用说明](packaging/README.md)。
+从 [Releases](https://github.com/yukai131/SynerRoll-main/releases) 下载并运行 `PSFA-Setup-1.0.0-x64.exe`。安装包包含 Electron、Node.js、Julia 和 HiGHS，用户无需额外安装这些环境。COPT 需用户自行安装及配置许可。每次启动使用原有离线许可证 Key 验证，发布单位为中国石油天然气股份有限公司规划总院。详细说明见 [使用说明](packaging/README.md)。
 
-随附文档：[软件使用说明](docs/PSFA新能源发电系统灵活性量化评估软件使用说明.docx)、[测试报告](docs/测试报告.docx)、[灵活性计算过程示例](docs/灵活性计算过程示例.pdf)。
+软件内置产品说明，涵盖滚动优化、设备模型和使用流程；部署说明见 [构建文档](docs/packaging.md)。
 
 ## 开发与构建
 

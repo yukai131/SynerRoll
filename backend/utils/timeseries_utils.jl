@@ -137,7 +137,6 @@ mutable struct SQLiteTimeSeriesStore
     db::SQLite.DB
     write_lock::ReentrantLock
     db_path::String
-    flexibility_initialized::Bool
 end
 
 """
@@ -246,7 +245,7 @@ function SQLiteTimeSeriesStore(db_path::String)
     _safe_exec(db, "CREATE INDEX IF NOT EXISTS idx_trace_data ON solve_trace_data(trace_id)")
     _safe_exec(db, "CREATE INDEX IF NOT EXISTS idx_trace_meta_task ON solve_trace_meta(task_id, step)")
 
-    return SQLiteTimeSeriesStore(db, ReentrantLock(), db_path, false)
+    return SQLiteTimeSeriesStore(db, ReentrantLock(), db_path)
 end
 
 """

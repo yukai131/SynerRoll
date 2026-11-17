@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import brand from '~~/config/brand.json'
 import type { Project } from '~~/types/project'
 
 import { useProjectApi } from '~~/composables/api/useProjectApi'
@@ -30,7 +31,7 @@ watchEffect(() => {
 const project = computed(() => projectState.value)
 
 useHead(() => ({
-  title: project.value ? `${project.value.name} - 结果分析` : '结果分析 - 新能源发电系统灵活性量化评估软件'
+  title: project.value ? `${project.value.name} - 结果分析` : `结果分析 - ${brand.displayName}`
 }))
 
 const exportBackendPayload = () => {

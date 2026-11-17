@@ -20,7 +20,7 @@ NSIS 解压后同步运行内置 Node 的 `prepare-runtime.cjs`，使用内置 J
 
 容量规划预算在 worker 内扣除 Julia 编译时间；在场景之间检查预算，并将剩余预算设置为原生求解时限。取消由 HTTP 父进程直接终止相应 worker。自定义测试 worker 无编译时钟，测试注入命令仍使用父进程墙钟看门狗。
 
-验收需覆盖离线及无 COPT 启动、中文安装和数据路径、新用户目录、单层/多层及灵活性、经济性、容量规划、取消、WebSocket、退出清理、升级和卸载数据保留。`SYNERROLL_USER_DATA` 可指向隔离测试目录。
+验收需覆盖离线及无 COPT 启动、中文安装和数据路径、新用户目录、单层/多层仿真、经济性、容量规划、取消、WebSocket、退出清理、升级和卸载数据保留。`SYNERROLL_USER_DATA` 可指向隔离测试目录。
 
 构建结束后运行 `node packaging/scripts/audit-package.mjs`，核对打包文件与当前源码、前端产物和校验和一致，检查必要运行时以及 HiGHS/COPT 分发边界。验收已安装的软件可运行 `node packaging/scripts/verify-services.mjs <安装目录> <隔离用户目录>`；它仅使用随包运行时，在最小 PATH、无开发机 Julia depot 的环境下执行完整业务链路，检查 SQLite 并清理测试任务，最后结束自己启动的进程。该脚本会创建测试项目并删除其中的测试计算任务，必须使用专用用户目录。
 

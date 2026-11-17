@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import brand from '~~/config/brand.json'
 import type {
   ApplyCapacityPlanningResult,
   ApplyCapacityPlanningPreview,
@@ -20,7 +21,7 @@ import type {
   ScenarioPreviewResult
 } from '~~/types/capacity-planning'
 import type { Project } from '~~/types/project'
-import { boundaryAxisName, BOUNDARY_MEANING_LABELS, resolveBoundaryModuleKey, resolveBoundaryUnit } from '~~/types/boundary'
+import { boundaryAxisName, BOUNDARY_MEANING_LABELS, isSupportedBoundary, resolveBoundaryUnit } from '~~/types/boundary'
 
 import { useCapacityPlanningApi } from '~~/composables/api/useCapacityPlanningApi'
 import { useProjectApi } from '~~/composables/api/useProjectApi'
@@ -31,7 +32,7 @@ import PropertyMultiSelect from '../../components/PropertyMultiSelect.vue'
 import IterationCandidatesPanel from '../../components/capacity-planning/IterationCandidatesPanel.vue'
 import * as echarts from 'echarts'
 
-definePageMeta({ title: '容量规划 - 新能源发电系统灵活性量化评估软件' })
+definePageMeta({ title: `容量规划 - ${brand.displayName}` })
 
 const route = useRoute()
 const projectId = computed(() => String(route.params.projectId ?? ''))
@@ -745,7 +746,7 @@ const handleBoundChange = (item: CapacityVariableDraft, field: 'lowerBound' | 'u
   const input = { value: String(value) } as unknown as EventTarget & { value: string }
   updateCapacityBound(item, field, { target: input } as unknown as Event)
 }
-const configuredBoundaries = computed(() => project.value?.boundaries ?? [])
+const configuredBoundaries = computed(() => (project.value?.boundaries ?? []).filter(isSupportedBoundary))
 // 当前画布节点引用的 boundaryId 并集（C-101/BUG-003）：聚类特征候选只允许取该集合内的边界，
 // 防止同项目其他画布的边界混入典型场景。
 const canvasBoundaryIds = computed(() => new Set(
@@ -755,13 +756,11 @@ const canvasBoundaryIds = computed(() => new Set(
 const canvasBoundaries = computed(() =>
   configuredBoundaries.value.filter(item => canvasBoundaryIds.value.has(item.id))
 )
-// Step2 历史边界数据：仅展示与组件已关联的边界，并排除 AGC 等调度目标类曲线
-const isAgcBoundary = (boundary: Project['boundaries'][number]) =>
-  resolveBoundaryModuleKey(boundary) === 'agc'
+// Step2 历史边界数据：仅展示与组件已关联的边界。
 const isLinkedToComponent = (boundary: Project['boundaries'][number]) =>
   (boundary.relatedComponents?.length ?? 0) > 0 || canvasBoundaryIds.value.has(boundary.id)
 const planningBoundaries = computed(() =>
-  configuredBoundaries.value.filter(item => !isAgcBoundary(item) && isLinkedToComponent(item))
+  configuredBoundaries.value.filter(item => isLinkedToComponent(item))
 )
 const canvasNodeNameById = computed(() => new Map(
   (project.value?.workspace.canvases.find(canvas => canvas.id === canvasId.value)?.nodes ?? [])
@@ -2818,7 +2817,7 @@ else {
 }
 
 useHead(() => ({
-  title: schema.value ? `${schema.value.projectName} - 容量规划` : '容量规划 - 新能源发电系统灵活性量化评估软件'
+  title: schema.value ? `${schema.value.projectName} - 容量规划` : `容量规划 - ${brand.displayName}`
 }))
 </script>
 
@@ -3173,7 +3172,7 @@ useHead(() => ({
                       </tr>
                     </tbody>
                   </table>
-                  <div v-if="!planningBoundaries.length" class="px-6 py-10 text-center text-sm text-app-muted">当前画布没有已关联组件的边界数据（AGC 等调度目标曲线不参与容量规划）。</div>
+                  <div v-if="!planningBoundaries.length" class="px-6 py-10 text-center text-sm text-app-muted">当前画布没有已关联组件的边界数据。</div>
                 </div>
               </div>
 
@@ -3661,7 +3660,7 @@ useHead(() => ({
                     <h3 class="text-sm font-semibold text-app-text">最优容量配置结果</h3>
                     <span class="rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-white">最优方案</span>
                   </div>
-                <!-- 指标卡片：与系统灵活性评价同风格 -->
+                <!-- 指标卡片 -->
                   <div class="grid grid-cols-2 gap-2 lg:grid-cols-4">
                     <div class="rounded-lg bg-app-panel-soft px-3 py-3">
                       <div class="text-sm text-app-muted">最优适应度</div>

@@ -40,7 +40,7 @@ defineEmits<{
           <span>返回</span>
         </button>
         <span class="h-5 w-px bg-white/30" aria-hidden="true" />
-        <button type="button" class="flex min-w-0 items-center gap-2.5 text-left" @click="$emit('navigateHome')">
+        <button type="button" class="flex min-w-0 items-center gap-2.5 text-left">
           <img
             v-if="logoSrc"
             :src="logoSrc"

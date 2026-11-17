@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { readTaskSeriesData, readTaskFlexibility } from '../server/utils/sqlite-reader.ts'
+import { readTaskSeriesData } from '../server/utils/sqlite-reader.ts'
 import { createTaskRequestGate } from '../utils/task-refresh.ts'
 import { pairTimeSeriesWindow, sliceTimeSeries } from '../utils/time-series-window.ts'
 import { downsampleTimeSeries } from '../utils/chart-downsample.ts'
@@ -16,7 +16,7 @@ test('committed deltas, overlapping revisions, boundary ranges and old database 
   mkdirSync(join(root, 'tasks', 'fixture'), { recursive: true })
   const tasks = new DatabaseSync(join(root, 'tasks.db'))
   tasks.exec('CREATE TABLE tasks (id TEXT PRIMARY KEY, layer_id TEXT, extra_json TEXT)')
-  tasks.prepare('INSERT INTO tasks VALUES (?,?,?)').run('fixture', '1', JSON.stringify({ flexibility: { enabled: true, layerId: '1' } }))
+  tasks.prepare('INSERT INTO tasks VALUES (?,?,?)').run('fixture', '1', '{}')
   const db = new DatabaseSync(join(root, 'tasks', 'fixture', 'timeseries.db'))
   db.exec(`
     PRAGMA journal_mode=WAL;
@@ -25,13 +25,7 @@ test('committed deltas, overlapping revisions, boundary ranges and old database 
     CREATE INDEX idx_data_series_tsmin ON time_series_data(series_id,ts_min);
     INSERT INTO time_series_meta VALUES(1,'b_boundary','P','planned','1'),(2,'BUS','E_SHORTAGE','power','1'),(3,'WT','P','power','1');
     INSERT INTO time_series_data(series_id,ts,value,ts_min) VALUES(1,'0:00',10,0),(1,'8760:00',20,525600),(2,'0:00',3,0),(3,'1:00',4,60);
-    CREATE TABLE flexibility_period_results(layer_id TEXT,timestamp_minutes INTEGER,direction TEXT,result_json TEXT,revision INTEGER);
-    CREATE TABLE flexibility_summary_results(layer_id TEXT,start_minutes INTEGER,result_json TEXT);
-    CREATE TABLE task_result_versions(kind TEXT PRIMARY KEY,version INTEGER);
-    INSERT INTO task_result_versions VALUES('flexibility',1);
   `)
-  const insertFlex = db.prepare('INSERT INTO flexibility_period_results VALUES(?,?,?,?,?)')
-  insertFlex.run('1', 0, 'up', JSON.stringify({ timestamp: '0:00', margin: 1 }), 1)
   try {
     const initial = readTaskSeriesData('fixture', { skipBoundary: true, afterId: 0, limit: 1 })
     assert.equal(initial.rows.length, 1)
@@ -52,22 +46,6 @@ test('committed deltas, overlapping revisions, boundary ranges and old database 
     assert.deepEqual(readTaskSeriesData('fixture', { afterId: delta.cursor }).rows, [])
     const boundary = readTaskSeriesData('fixture', { boundaryOnly: true, minMinutes: 0, maxMinutes: 60 })
     assert.deepEqual(boundary.rows.map(row => row.ts), ['0:00'])
-    const allFlex = readTaskFlexibility('fixture')
-    assert.equal(allFlex.revision, 1)
-    assert.equal(allFlex.reset, true)
-    assert.equal(allFlex.periods.length, 1)
-    assert.deepEqual(readTaskFlexibility('fixture', { afterRevision: 1 }).periods, [])
-    db.exec('BEGIN IMMEDIATE')
-    db.prepare('UPDATE flexibility_period_results SET result_json=?,revision=2').run(JSON.stringify({ timestamp: '0:00', margin: 42 }))
-    db.exec("UPDATE task_result_versions SET version=2 WHERE kind='flexibility'; COMMIT")
-    const flexDelta = readTaskFlexibility('fixture', { afterRevision: 1 })
-    assert.equal(flexDelta.periods[0].margin, 42)
-    assert.equal(flexDelta.reset, false)
-    assert.equal(readTaskFlexibility('fixture', { afterRevision: 100 }).reset, true)
-    db.exec('DROP TABLE task_result_versions')
-    const legacy = readTaskFlexibility('fixture', { afterRevision: 2 })
-    assert.equal(legacy.versioned, false)
-    assert.equal(legacy.periods.length, 1)
     db.exec('DROP INDEX idx_data_series_tsmin; ALTER TABLE time_series_data DROP COLUMN ts_min')
     assert.deepEqual(readTaskSeriesData('fixture', { boundaryOnly: true, maxMinutes: 60 }).rows.map(row => row.ts), ['0:00'])
   } finally {

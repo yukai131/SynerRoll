@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import brand from '~~/config/brand.json'
 import type { CanvasClipboard, CanvasData, CanvasSelection, FlowNode } from '~~/types/canvas'
 import type { Project } from '~~/types/project'
 import type { AlgorithmConfig, LayerDefinition } from '~~/types/simulation'
@@ -282,7 +283,7 @@ const contentGridStyle = computed(() => ({
 }))
 
 useHead(() => ({
-  title: project.value ? `${project.value.name} - 新能源发电系统灵活性量化评估软件` : '新能源发电系统灵活性量化评估软件 编辑器'
+  title: project.value ? `${project.value.name} - ${brand.displayName}` : `${brand.displayName} 编辑器`
 }))
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
